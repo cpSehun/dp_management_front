@@ -1,24 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DP 관리 시스템 - 프론트엔드
 
-## Getting Started
+Next.js와 React로 구현된 DP 관리 시스템의 프론트엔드입니다.
 
-First, run the development server:
+## 기술 스택
+
+- Next.js
+- React
+- Tailwind CSS
+- TypeScript
+
+## 설치 및 실행
+
+### 로컬 개발 환경
 
 ```bash
+# 패키지 설치
+npm install
+
+# 개발 서버 실행
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Docker 환경
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# Docker 이미지 빌드 & 실행
+docker-compose up --build -d
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 주요 기능
+
+- 사용자 인증 (로그인/로그아웃)
+- Google OAuth 로그인
+- 사용자 관리 대시보드
+- 관리자 페이지
+
+## 프로젝트 구조
+
+```
+frontend/
+├── public/            # 정적 파일
+├── src/
+│   ├── app/           # Next.js 15 App Router
+│   │   ├── admin/     # 관리자 페이지
+│   │   └── login/     # 로그인 페이지
+│   ├── components/    # 재사용 가능한 컴포넌트
+│   ├── utils/         # 유틸리티 함수
+│   └── styles/        # 전역 스타일
+├── next.config.ts     # Next.js 설정
+└── package.json       # 패키지 정보
+```
+
+## 환경 변수
+
+`.env` 파일에 다음 환경 변수를 설정하세요:
+
+```
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+## API 연동
+
+백엔드 API 서버와의 연동은 `src/utils/api.ts`에서 관리됩니다. Next.js rewrites 기능을 사용하여 `/api` 경로를 백엔드로 프록시합니다.
 
 ## Learn More
 
