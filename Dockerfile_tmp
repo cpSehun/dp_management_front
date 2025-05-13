@@ -1,0 +1,41 @@
+# 1. 기본 이미지 설정 (Node.js LTS 버전 사용)
+FROM node:20-alpine AS base
+
+# 2. 작업 디렉토리 설정
+WORKDIR /app
+
+# 3. 의존성 설치 단계 (프로덕션 빌드를 위해 분리)
+FROM base AS deps
+COPY package.json yarn.lock* package-lock.json* ./
+RUN \
+  if [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
+  elif [ -f package-lock.json ]; then npm ci; \
+  else echo "Lockfile not found." && exit 1; \
+  fi
+
+# 4. 프로덕션 빌드 단계
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
+
+# 5. 프로덕션 실행 단계
+FROM base AS runner
+ENV NODE_ENV=production
+
+# 만약 위에서 로그를 확인했다면, 실제 배포를 위해 아래 COPY는 주석 처리하고,
+# 빌드 로그 및 디렉토리 목록을 runner 이미지로 복사해서 확인 가능
+# COPY --from=builder /app/build_log.txt /tmp/build_log.txt
+# COPY --from=builder /app/next_dir_listing.txt /tmp/next_dir_listing.txt
+# CMD ["sh", "-c", "cat /tmp/build_log.txt && cat /tmp/next_dir_listing.txt && sleep infinity"]
+
+# 실제 배포용 COPY (문제가 해결되었다고 가정)
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+
+# Next.js 기본 포트
+EXPOSE 3000
+
+# 애플리케이션 실행 명령어
+CMD ["node", "server.js"]

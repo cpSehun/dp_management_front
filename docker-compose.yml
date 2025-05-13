@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dp_management_frontend_dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+      # 디버깅을 위한 포트
+      - "9229:9229"
+    env_file:
+      - .env
+    volumes:
+      # 소스 코드 변경 시 즉시 반영 (핫 리로딩)
+      - .:/app
+      # node_modules는 컨테이너 내부의 것을 사용
+      - /app/node_modules
+    networks:
+      - dp_network
+
+networks:
+  dp_network:
+    external: true
