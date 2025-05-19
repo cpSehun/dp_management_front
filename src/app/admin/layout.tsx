@@ -6,6 +6,7 @@ import {
 	Users,
 	BarChart3,
 	TerminalSquare,
+	Image,
 	// Settings,
 } from "lucide-react";
 
@@ -130,6 +131,17 @@ export default function AdminLayout({
 							>
 								<TerminalSquare className="h-4 w-4" />
 								Prompts
+							</Link>
+							<Link
+								href="/admin/image-generator"
+								className={`flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
+									pathname === "/admin/image-generator"
+										? "bg-muted text-primary"
+										: ""
+								}`}
+							>
+								<Image className="h-4 w-4" />
+								Image Generation
 							</Link>
 							<Link
 								href="/admin/users"
