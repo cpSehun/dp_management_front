@@ -12,6 +12,11 @@ const nextConfig = {
 	},
 	// 소스맵 활성화
 	productionBrowserSourceMaps: true,
+	// 이미지 생성 요청에 대한 타임아웃 설정
+	experimental: {
+		proxyTimeout: 300000, // 5분(300초) 타임아웃
+		serverComponentsExternalPackages: [],
+	},
 	// 개발 환경 특화 설정
 	webpack: (
 		config: any,

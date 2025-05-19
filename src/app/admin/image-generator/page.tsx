@@ -9,12 +9,20 @@ export default function ImageGeneratorPage() {
 	const [prompt, setPrompt] = useState("");
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [generatedImages, setGeneratedImages] = useState<
-		{ url: string; filename: string }[]
+		{ url: string; filename: string; original_url?: string }[]
 	>([]);
 	const [error, setError] = useState<string | null>(null);
-	const [seed, setSeed] = useState<number | null>(null);
+	const [seed, setSeed] = useState<number | null>(() => {
+		// 초기 시드값 생성 (랜덤)
+		return Math.floor(Math.random() * 4294967295);
+	});
 	const [steps, setSteps] = useState(40);
 	const [batchSize, setBatchSize] = useState(1);
+
+	const handleRandomSeed = () => {
+		// 랜덤 시드 생성 (0 ~ 2^32-1 사이)
+		setSeed(Math.floor(Math.random() * 4294967295));
+	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -22,8 +30,13 @@ export default function ImageGeneratorPage() {
 
 		setIsGenerating(true);
 		setError(null);
+		setGeneratedImages([]);
 
 		try {
+			// 타임아웃을 5분(300초)으로 설정하는 AbortController
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 300000);
+
 			const response = await fetch("/api/v1/image-generator/generate", {
 				method: "POST",
 				headers: {
@@ -36,7 +49,10 @@ export default function ImageGeneratorPage() {
 					seed: seed,
 					batch_size: batchSize,
 				}),
+				signal: controller.signal,
 			});
+
+			clearTimeout(timeoutId); // 응답이 왔으면 타임아웃 취소
 
 			const data = await response.json();
 
@@ -46,30 +62,29 @@ export default function ImageGeneratorPage() {
 
 			if (data.success) {
 				// 생성된 모든 이미지 설정
+				console.log("생성된 이미지 상세 정보:", JSON.stringify(data.images));
 				setGeneratedImages(data.images || []);
 			} else {
 				throw new Error(data.error || "알 수 없는 오류가 발생했습니다.");
 			}
 		} catch (error) {
 			console.error("이미지 생성 오류:", error);
-			setError(
-				error instanceof Error
-					? error.message
-					: "이미지 생성 중 오류가 발생했습니다."
-			);
+
+			// AbortError인 경우 타임아웃 메시지 표시
+			if (error instanceof DOMException && error.name === "AbortError") {
+				setError(
+					"이미지 생성 요청이 너무 오래 걸려 취소되었습니다. 다시 시도해 주세요."
+				);
+			} else {
+				setError(
+					error instanceof Error
+						? error.message
+						: "이미지 생성 중 오류가 발생했습니다."
+				);
+			}
 		} finally {
 			setIsGenerating(false);
 		}
-	};
-
-	const handleRegenerate = () => {
-		if (!prompt.trim()) return;
-		handleSubmit({ preventDefault: () => {} } as React.FormEvent);
-	};
-
-	const handleRandomSeed = () => {
-		// 랜덤 시드 생성 (0 ~ 2^32-1 사이)
-		setSeed(Math.floor(Math.random() * 4294967295));
 	};
 
 	return (
@@ -110,9 +125,7 @@ export default function ImageGeneratorPage() {
 										/>
 									</div>
 									<div>
-										<label className="text-sm font-medium">
-											시드 (선택사항)
-										</label>
+										<label className="text-sm font-medium">시드 (Random)</label>
 										<div className="flex mt-1">
 											<input
 												type="number"
@@ -123,7 +136,7 @@ export default function ImageGeneratorPage() {
 													)
 												}
 												className="flex-1 border border-gray-300 rounded-l-md px-3 py-2"
-												placeholder="자동 생성"
+												placeholder="랜덤 시드"
 											/>
 											<button
 												type="button"
@@ -169,18 +182,6 @@ export default function ImageGeneratorPage() {
 									>
 										{isGenerating ? "이미지 생성 중..." : "이미지 생성"}
 									</Button>
-
-									{generatedImages.length > 0 && (
-										<Button
-											type="button"
-											variant="outline"
-											className="w-full sm:w-auto"
-											onClick={handleRegenerate}
-											disabled={isGenerating || !prompt.trim()}
-										>
-											이미지 재생성
-										</Button>
-									)}
 								</div>
 							</div>
 						</form>
@@ -201,21 +202,29 @@ export default function ImageGeneratorPage() {
 						) : generatedImages.length > 0 ? (
 							<div className="flex flex-col items-center w-full">
 								<div
-									className={`grid grid-cols-${Math.min(
-										generatedImages.length,
-										2
-									)} gap-4 w-full`}
+									className={
+										generatedImages.length >= 3
+											? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 w-full"
+											: generatedImages.length === 2
+											? "grid grid-cols-1 sm:grid-cols-2 gap-4 w-full"
+											: "grid grid-cols-1 gap-4 w-full"
+									}
 								>
 									{generatedImages.map((image, index) => (
 										<div key={index} className="flex flex-col items-center">
-											<img
-												src={image.url}
-												alt={`생성된 이미지 ${index + 1}`}
-												className="max-w-full max-h-[300px] rounded-md shadow-md"
-											/>
+											<div className="relative min-h-[200px] flex items-center justify-center">
+												<img
+													src={image.url}
+													alt={`생성된 이미지 ${index + 1}`}
+													className="max-w-full max-h-[300px] rounded-md shadow-md"
+												/>
+											</div>
 											<div className="mt-2 flex space-x-2">
 												<a
-													href={image.url}
+													href={
+														image.original_url ||
+														`${window.location.origin}${image.url}`
+													}
 													target="_blank"
 													rel="noopener noreferrer"
 													className="px-3 py-1 bg-blue-50 text-blue-700 rounded-md text-sm hover:bg-blue-100"
@@ -223,7 +232,7 @@ export default function ImageGeneratorPage() {
 													원본
 												</a>
 												<a
-													href={image.url}
+													href={`${window.location.origin}${image.url}`}
 													download={image.filename}
 													className="px-3 py-1 bg-green-50 text-green-700 rounded-md text-sm hover:bg-green-100"
 												>
