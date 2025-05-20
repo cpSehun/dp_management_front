@@ -8,6 +8,9 @@ import {
 	TerminalSquare,
 	Image,
 	// Settings,
+	User,
+	ChevronDown,
+	ChevronUp,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -86,6 +89,11 @@ export default function AdminLayout({
 		window.location.href = "/login";
 	};
 
+	// 현재 경로에 따라 해당 메뉴가 열려있는지 확인하는 함수
+	const isMenuOpen = (menuPath: string) => {
+		return pathname.startsWith(menuPath);
+	};
+
 	return (
 		<div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
 			<div className="hidden border-r bg-muted/40 md:block">
@@ -96,7 +104,7 @@ export default function AdminLayout({
 							className="flex items-center gap-2 font-semibold"
 						>
 							<TerminalSquare className="h-6 w-6" />
-							<span className="">Admin Panel</span>
+							<span className="">Daepa Admin</span>
 						</Link>
 						{/* <Button variant="outline" size="icon" className="ml-auto h-8 w-8">
               <Bell className="h-4 w-4" />
@@ -115,34 +123,110 @@ export default function AdminLayout({
 								Dashboard
 							</Link>
 							<Link
-								href="/admin/data"
+								href="/admin/persona"
 								className={`flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
-									pathname === "/admin/data" ? "bg-muted text-primary" : ""
+									pathname === "/admin/persona" ? "bg-muted text-primary" : ""
 								}`}
 							>
-								<Home className="h-4 w-4" /> {/* TODO: Change icon */}
-								Data
+								<User className="h-4 w-4" />
+								Persona
 							</Link>
-							<Link
-								href="/admin/prompts"
-								className={`flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
-									pathname === "/admin/prompts" ? "bg-muted text-primary" : ""
-								}`}
-							>
-								<TerminalSquare className="h-4 w-4" />
-								Prompts
-							</Link>
-							<Link
-								href="/admin/image-generator"
-								className={`flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
-									pathname === "/admin/image-generator"
-										? "bg-muted text-primary"
-										: ""
-								}`}
-							>
-								<Image className="h-4 w-4" />
-								Image Generation
-							</Link>
+
+							{/* 프롬프트 아코디언 서브메뉴 */}
+							<div className="flex flex-col">
+								<div
+									className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
+										pathname.startsWith("/admin/prompts")
+											? "bg-muted text-primary"
+											: ""
+									}`}
+								>
+									<Link
+										href="/admin/prompts/image"
+										className="flex items-center gap-3"
+									>
+										<TerminalSquare className="h-4 w-4" />
+										<span>Prompts</span>
+									</Link>
+									{isMenuOpen("/admin/prompts") ? (
+										<ChevronUp className="h-4 w-4" />
+									) : (
+										<ChevronDown className="h-4 w-4" />
+									)}
+								</div>
+
+								{isMenuOpen("/admin/prompts") && (
+									<div className="ml-7 mt-1 border-l border-gray-200 pl-3 flex flex-col gap-1">
+										<Link
+											href="/admin/prompts/image"
+											className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:text-primary ${
+												pathname === "/admin/prompts/image"
+													? "bg-muted/70 text-primary"
+													: ""
+											}`}
+										>
+											Image Prompts
+										</Link>
+										<Link
+											href="/admin/prompts/persona"
+											className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:text-primary ${
+												pathname === "/admin/prompts/persona"
+													? "bg-muted/70 text-primary"
+													: ""
+											}`}
+										>
+											Persona Prompts
+										</Link>
+									</div>
+								)}
+							</div>
+
+							{/* 이미지 아코디언 서브메뉴 */}
+							<div className="flex flex-col">
+								<div
+									className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
+										pathname.startsWith("/admin/image")
+											? "bg-muted text-primary"
+											: ""
+									}`}
+								>
+									<Link href="/admin/image" className="flex items-center gap-3">
+										<Image className="h-4 w-4" />
+										<span>Images</span>
+									</Link>
+									{isMenuOpen("/admin/image") ? (
+										<ChevronUp className="h-4 w-4" />
+									) : (
+										<ChevronDown className="h-4 w-4" />
+									)}
+								</div>
+
+								{isMenuOpen("/admin/image") && (
+									<div className="ml-7 mt-1 border-l border-gray-200 pl-3 flex flex-col gap-1">
+										<Link
+											href="/admin/image/list"
+											className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:text-primary ${
+												pathname === "/admin/image/list"
+													? "bg-muted/70 text-primary"
+													: ""
+											}`}
+										>
+											Image List
+										</Link>
+										<Link
+											href="/admin/image-generator"
+											className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:text-primary ${
+												pathname === "/admin/image-generator"
+													? "bg-muted/70 text-primary"
+													: ""
+											}`}
+										>
+											Image Generation
+										</Link>
+									</div>
+								)}
+							</div>
+
 							<Link
 								href="/admin/users"
 								className={`flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
