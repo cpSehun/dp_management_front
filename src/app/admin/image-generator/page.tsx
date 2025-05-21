@@ -49,9 +49,9 @@ interface Prompt {
 
 // 생성된 이미지 타입 정의
 interface GeneratedImage {
-	url: string;
-	filename: string;
-	original_url?: string;
+	url: string; // 이 URL은 생성 후 백엔드에서 받은 ComfyUI/OpenAI URL 또는 S3 저장 후의 URL이 될 수 있음
+	filename?: string; // 로컬 다운로드용 파일명이었으나, S3 저장 후에는 S3가 반환하는 객체 키나 파일명이 될 수 있음. 선택적 필드로 변경.
+	original_url?: string; // ComfyUI 또는 OpenAI의 원본 이미지 URL (S3 저장 시 이 URL 사용)
 	selected: boolean;
 	seed?: number;
 	steps?: number;
@@ -269,10 +269,20 @@ export default function ImageGeneratorPage() {
 
 	// 선택된 이미지 저장
 	const saveSelectedImages = async () => {
-		const selectedImages = generatedImages.filter((img) => img.selected);
+		const selectedToSave = generatedImages.filter((img) => img.selected);
 
-		if (selectedImages.length === 0) {
+		if (selectedToSave.length === 0) {
 			setError("저장할 이미지를 선택해주세요.");
+			return;
+		}
+
+		// S3에 저장할 때는 original_url을 사용해야 함
+		const imageUrlsToSave = selectedToSave
+			.map((img) => img.original_url || img.url) // original_url 우선 사용, 없으면 url 사용
+			.filter((url) => !!url); // 유효한 URL만 필터링
+
+		if (imageUrlsToSave.length === 0) {
+			setError("S3에 저장할 유효한 이미지 URL이 없습니다.");
 			return;
 		}
 
@@ -281,33 +291,36 @@ export default function ImageGeneratorPage() {
 		setError(null);
 
 		try {
-			// 선택된 이미지를 백엔드에 저장하는 API 호출
-			const response = await fetch("/api/v1/images/save", {
+			const response = await fetch("/api/v1/image-generator/s3/save-images", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 					Authorization: `Bearer ${localStorage.getItem("access_token")}`,
 				},
 				body: JSON.stringify({
-					images: selectedImages,
-					prompt: prompt,
-					model: selectedModel,
+					image_urls: imageUrlsToSave,
+					// 필요하다면 추가 메타데이터 전송
+					// prompt: prompt,
+					// model: selectedModel,
 				}),
 			});
 
 			if (!response.ok) {
-				throw new Error("이미지 저장에 실패했습니다.");
+				const errorData = await response.json();
+				throw new Error(errorData.message || "이미지 S3 저장에 실패했습니다.");
 			}
 
 			const data = await response.json();
-			console.log("저장 결과:", data);
+			console.log("S3 저장 결과:", data);
 			setSaveSuccess(true);
+			// 선택된 이미지들의 selected 상태를 false로 변경하거나, 목록에서 제거하는 등의 후처리 가능
+			// 예: setGeneratedImages(prev => prev.map(img => img.selected ? {...img, selected: false} : img));
 		} catch (error) {
-			console.error("이미지 저장 오류:", error);
+			console.error("S3 이미지 저장 오류:", error);
 			setError(
 				error instanceof Error
 					? error.message
-					: "이미지 저장 중 오류가 발생했습니다."
+					: "S3에 이미지 저장 중 오류가 발생했습니다."
 			);
 		} finally {
 			setIsSaving(false);
@@ -630,90 +643,106 @@ export default function ImageGeneratorPage() {
 								</div>
 
 								{/* 스텝과 시드는 해당 모델이 지원할 때만 표시 */}
-								{isOptionSupported("steps") && isOptionSupported("seed") && (
+								{(isOptionSupported("steps") || isOptionSupported("seed")) && (
 									<div className="space-y-3">
-										{/* 스텝 설정 UI */}
-										<div className="flex items-center space-x-2">
-											<Checkbox
-												id="useSpecificSteps"
-												checked={useSpecificSteps}
-												onCheckedChange={(checked) =>
-													setUseSpecificSteps(!!checked)
-												}
-											/>
-											<Label
-												htmlFor="useSpecificSteps"
-												className="text-sm font-medium"
-											>
-												Step 지정하기
-											</Label>
-											<span className="text-xs text-gray-500 ml-2"></span>
-										</div>
+										{/* 스텝 설정 UI (isOptionSupported로 감싸기) */}
+										{isOptionSupported("steps") && (
+											<>
+												<div className="flex items-center space-x-2">
+													<Checkbox
+														id="useSpecificSteps"
+														checked={useSpecificSteps}
+														onCheckedChange={(checked) =>
+															setUseSpecificSteps(!!checked)
+														}
+													/>
+													<Label
+														htmlFor="useSpecificSteps"
+														className="text-sm font-medium"
+													>
+														Step 지정하기
+													</Label>
+													<span className="text-xs text-gray-500 ml-2"></span>
+												</div>
 
-										{useSpecificSteps ? (
-											<div>
-												<label className="text-sm font-medium">스텝 값</label>
-												<input
-													type="number"
-													min="1"
-													max="100"
-													value={steps}
-													onChange={(e) => setSteps(parseInt(e.target.value))}
-													className="w-full mt-1 border border-gray-300 rounded-md px-3 py-2"
-												/>
-											</div>
-										) : (
-											<div className="text-xs text-gray-500 pl-6">
-												Default:40 으로 생성됩니다.
-											</div>
+												{useSpecificSteps ? (
+													<div>
+														<label className="text-sm font-medium">
+															스텝 값
+														</label>
+														<input
+															type="number"
+															min="1"
+															max="100"
+															value={steps}
+															onChange={(e) =>
+																setSteps(parseInt(e.target.value))
+															}
+															className="w-full mt-1 border border-gray-300 rounded-md px-3 py-2"
+														/>
+													</div>
+												) : (
+													<div className="text-xs text-gray-500 pl-6">
+														Default:40 으로 생성됩니다.
+													</div>
+												)}
+											</>
 										)}
 
-										{/* 시드 설정 UI */}
-										<div className="flex items-center space-x-2">
-											<Checkbox
-												id="useSpecificSeed"
-												checked={useSpecificSeed}
-												onCheckedChange={(checked) =>
-													setUseSpecificSeed(!!checked)
-												}
-											/>
-											<Label
-												htmlFor="useSpecificSeed"
-												className="text-sm font-medium"
-											>
-												Seed 지정하기
-											</Label>
-										</div>
-
-										{useSpecificSeed ? (
-											<div>
-												<label className="text-sm font-medium">시드 값</label>
-												<div className="flex mt-1">
-													<input
-														type="number"
-														value={seed !== null ? seed : ""}
-														onChange={(e) =>
-															setSeed(
-																e.target.value ? parseInt(e.target.value) : null
-															)
+										{/* 시드 설정 UI (isOptionSupported로 감싸기) */}
+										{isOptionSupported("seed") && (
+											<>
+												<div className="flex items-center space-x-2">
+													<Checkbox
+														id="useSpecificSeed"
+														checked={useSpecificSeed}
+														onCheckedChange={(checked) =>
+															setUseSpecificSeed(!!checked)
 														}
-														className="flex-1 border border-gray-300 rounded-l-md px-3 py-2"
-														placeholder="시드 값 입력"
 													/>
-													<button
-														type="button"
-														onClick={handleRandomSeed}
-														className="bg-gray-100 px-2 rounded-r-md border border-l-0 border-gray-300"
-														title="랜덤 시드 생성"
+													<Label
+														htmlFor="useSpecificSeed"
+														className="text-sm font-medium"
 													>
-														🎲
-													</button>
+														Seed 지정하기
+													</Label>
 												</div>
-											</div>
-										) : (
-											<div className="text-xs text-gray-500 pl-6">
-												Random 시드값으로 생성됩니다.
-											</div>
+
+												{useSpecificSeed ? (
+													<div>
+														<label className="text-sm font-medium">
+															시드 값
+														</label>
+														<div className="flex mt-1">
+															<input
+																type="number"
+																value={seed !== null ? seed : ""}
+																onChange={(e) =>
+																	setSeed(
+																		e.target.value
+																			? parseInt(e.target.value)
+																			: null
+																	)
+																}
+																className="flex-1 border border-gray-300 rounded-l-md px-3 py-2"
+																placeholder="시드 값 입력"
+															/>
+															<button
+																type="button"
+																onClick={handleRandomSeed}
+																className="bg-gray-100 px-2 rounded-r-md border border-l-0 border-gray-300"
+																title="랜덤 시드 생성"
+															>
+																🎲
+															</button>
+														</div>
+													</div>
+												) : (
+													<div className="text-xs text-gray-500 pl-6">
+														Random 시드값으로 생성됩니다.
+													</div>
+												)}
+											</>
 										)}
 									</div>
 								)}
@@ -819,37 +848,17 @@ export default function ImageGeneratorPage() {
 												/>
 											</div>
 
-											{/* 시드값 표시 */}
-											{image.seed !== undefined && (
-												<div
-													className="mt-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200"
-													onClick={() => copySeedToClipboard(image.seed)}
-													title="클릭하여 시드값 복사"
-												>
-													Seed: {image.seed}
-												</div>
-											)}
-
-											<div className="mt-2 flex space-x-2">
-												<a
-													href={
-														image.original_url ||
-														`${window.location.origin}${image.url}`
-													}
-													target="_blank"
-													rel="noopener noreferrer"
-													className="px-3 py-1 bg-blue-50 text-blue-700 rounded-md text-sm hover:bg-blue-100"
-												>
-													원본
-												</a>
-												<a
-													href={`${window.location.origin}${image.url}`}
-													download={image.filename}
-													className="px-3 py-1 bg-green-50 text-green-700 rounded-md text-sm hover:bg-green-100"
-												>
-													저장
-												</a>
-											</div>
+											{/* 시드값 표시 (gpt-image-1) */}
+											{image.seed !== undefined &&
+												selectedModel !== "gpt-image-1" && (
+													<div
+														className="mt-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200"
+														onClick={() => copySeedToClipboard(image.seed)}
+														title="클릭하여 시드값 복사"
+													>
+														Seed: {image.seed}
+													</div>
+												)}
 										</div>
 									))}
 								</div>
