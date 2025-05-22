@@ -21,6 +21,16 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import React from "react";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogDescription,
+	DialogFooter,
+	DialogClose,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 // 모델 타입 정의
 interface Model {
@@ -55,79 +65,13 @@ interface GeneratedImage {
 	selected: boolean;
 	seed?: number;
 	steps?: number;
+	prompt: string; // 이미지 생성 시 사용된 프롬프트
+	modelName: string; // 이미지 생성 시 사용된 모델명
+	is_base64: boolean; // URL이 base64 데이터인지 여부
 }
 
-// 샘플 이미지 프롬프트
-const sampleImagePrompts: Prompt[] = [
-	{
-		id: 1,
-		name: "비즈니스 프로페셔널",
-		description: "전문적인 비즈니스 인물 이미지 생성 프롬프트",
-		versions: [
-			{
-				id: 1,
-				content:
-					"30대 남성, 정장 차림, 깔끔한 헤어스타일, 사무실 배경, 전문적인 표정, 고품질 사진, 자연스러운 조명",
-				createdAt: "2023-07-15T09:30:00Z",
-				isActive: false,
-			},
-			{
-				id: 2,
-				content:
-					"30대 남성, 정장 차림, 깔끔한 헤어스타일, 현대적인 사무실 배경, 자신감 있는 표정, 프로페셔널한 분위기, 고품질 초상화, 소프트 스튜디오 조명",
-				createdAt: "2023-08-20T14:15:00Z",
-				isActive: true,
-			},
-		],
-		currentVersion: 2,
-		tags: ["비즈니스", "전문가", "남성", "정장"],
-		createdAt: "2023-07-15T09:30:00Z",
-		updatedAt: "2023-08-20T14:15:00Z",
-	},
-	{
-		id: 2,
-		name: "크리에이티브 디자이너",
-		description: "창의적인 디자이너 페르소나 이미지 생성",
-		versions: [
-			{
-				id: 1,
-				content:
-					"20대 여성, 캐주얼하고 트렌디한 의상, 창의적인 작업 공간, 컬러풀한 배경, 태블릿으로 작업 중, 예술적인 분위기, 자연광",
-				createdAt: "2023-07-20T11:45:00Z",
-				isActive: true,
-			},
-		],
-		currentVersion: 1,
-		tags: ["디자이너", "창의적", "캐주얼", "여성"],
-		createdAt: "2023-07-20T11:45:00Z",
-		updatedAt: "2023-07-20T11:45:00Z",
-	},
-	{
-		id: 3,
-		name: "의료 전문가",
-		description: "의사 또는 간호사 페르소나 이미지 생성",
-		versions: [
-			{
-				id: 1,
-				content:
-					"40대 여성, 흰색 의사 가운, 청진기, 병원 배경, 진지한 표정, 고해상도 사진",
-				createdAt: "2023-08-05T17:20:00Z",
-				isActive: false,
-			},
-			{
-				id: 2,
-				content:
-					"40대 여성, 흰색 의사 가운, 청진기, 현대적인 의료 시설 배경, 따뜻하고 신뢰감 있는 표정, 전문적인 분위기, 부드러운 조명으로 촬영된 초상화",
-				createdAt: "2023-09-10T13:10:00Z",
-				isActive: true,
-			},
-		],
-		currentVersion: 2,
-		tags: ["의사", "의료", "여성", "전문가"],
-		createdAt: "2023-08-05T17:20:00Z",
-		updatedAt: "2023-09-10T13:10:00Z",
-	},
-];
+// 샘플 이미지 프롬프트 제거
+// const sampleImagePrompts: Prompt[] = [...];
 
 export default function ImageGeneratorPage() {
 	const [prompt, setPrompt] = useState("");
@@ -145,12 +89,13 @@ export default function ImageGeneratorPage() {
 	const [models, setModels] = useState<Model[]>([]);
 	const [selectedModel, setSelectedModel] = useState<string>("flux-dev");
 	const [isLoadingModels, setIsLoadingModels] = useState(false);
+	const [isLoadingImagePrompts, setIsLoadingImagePrompts] = useState(false); // 프롬프트 로딩 상태 추가
 
 	// 프롬프트 관련 상태 추가
-	const [imagePrompts, setImagePrompts] =
-		useState<Prompt[]>(sampleImagePrompts);
-	const [filteredImagePrompts, setFilteredImagePrompts] =
-		useState<Prompt[]>(sampleImagePrompts);
+	const [imagePrompts, setImagePrompts] = useState<Prompt[]>([]); // API로부터 받을 프롬프트 목록 (초기값 빈 배열)
+	const [filteredImagePrompts, setFilteredImagePrompts] = useState<Prompt[]>(
+		[]
+	); // 필터링된 프롬프트 목록 (초기값 빈 배열)
 	const [imagePromptSearch, setImagePromptSearch] = useState("");
 	const [selectedImagePrompt, setSelectedImagePrompt] = useState<Prompt | null>(
 		null
@@ -160,6 +105,14 @@ export default function ImageGeneratorPage() {
 	// 선택된 이미지 저장 관련 상태
 	const [isSaving, setIsSaving] = useState(false);
 	const [saveSuccess, setSaveSuccess] = useState(false);
+
+	// S3 저장 확인 다이얼로그 관련 상태
+	const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+	const [imageToConfirm, setImageToConfirm] = useState<GeneratedImage | null>(
+		null
+	);
+	const [confirmImageName, setConfirmImageName] = useState("");
+	const [confirmImageTags, setConfirmImageTags] = useState(""); // 쉼표로 구분된 태그 문자열
 
 	// 모델에 따라 일부 옵션이 지원되는지 확인하는 함수
 	const isOptionSupported = (option: string): boolean => {
@@ -198,6 +151,90 @@ export default function ImageGeneratorPage() {
 		};
 
 		fetchModels();
+	}, []);
+
+	// 이미지 프롬프트 목록 가져오기 (DB 연동 후)
+	useEffect(() => {
+		const fetchImagePrompts = async () => {
+			setIsLoadingImagePrompts(true);
+			setImagePrompts([]); // 기존 목록 초기화
+			setFilteredImagePrompts([]);
+			try {
+				const token = localStorage.getItem("access_token");
+				if (!token) {
+					// 로그인 페이지로 리디렉션 또는 오류 처리
+					console.error("Access token not found. Cannot fetch image prompts.");
+					// setError("이미지 프롬프트를 가져오려면 로그인이 필요합니다."); // 사용자에게 오류 표시
+					return;
+				}
+
+				// TODO: 실제 이미지 프롬프트 API 엔드포인트로 변경 (예: /api/v1/prompts/image?active=true 또는 유사 형태)
+				const response = await fetch("/api/v1/prompts/image", {
+					headers: {
+						Authorization: `Bearer ${token}`,
+					},
+				});
+
+				if (!response.ok) {
+					const errorData = await response.json().catch(() => ({}));
+					console.error("Failed to fetch image prompts:", errorData);
+					// setError(`이미지 프롬프트 목록 로딩 실패: ${errorData.detail || response.statusText}`);
+					throw new Error(errorData.detail || "Failed to fetch image prompts");
+				}
+				const responseData: PaginatedPromptsResponse = await response.json();
+				console.log(
+					"Raw API responseData:",
+					JSON.stringify(responseData, null, 2)
+				);
+				if (!responseData || !Array.isArray(responseData.items)) {
+					console.error(
+						"API responseData.items is not an array or responseData is invalid:",
+						responseData
+					);
+					// 여기서 에러 처리를 하거나, 빈 배열로 강제할 수 있습니다.
+					setImagePrompts([]);
+					setFilteredImagePrompts([]);
+					setIsLoadingImagePrompts(false); // 로딩 상태 종료
+					setError("API 응답 형식이 잘못되었습니다."); // 사용자에게 알림
+					return; // 함수 종료
+				}
+
+				const fetchedPrompts: Prompt[] = responseData.items.map((item) => {
+					console.log("Mapping item:", JSON.stringify(item, null, 2));
+					if (!item.versions || !Array.isArray(item.versions)) {
+						console.error("Item versions is not an array or undefined:", item);
+						// 각 item의 versions가 배열이 아니면 기본값 또는 에러 처리
+						return { ...item, versions: [] }; // versions를 빈 배열로 설정
+					}
+					return {
+						...item,
+						versions: item.versions.map((v) => {
+							console.log("Mapping version:", JSON.stringify(v, null, 2));
+							return {
+								id: v.id,
+								version: (v as any).version, // 이 부분이 실제 데이터와 맞는지 확인!
+								content: v.content,
+								is_active: v.is_active, // 이 부분이 실제 데이터와 맞는지 확인!
+								created_at: (v as any).created_at, // 이 부분이 실제 데이터와 맞는지 확인!
+							};
+						}),
+					};
+				});
+				console.log(
+					"Processed fetchedPrompts:",
+					JSON.stringify(fetchedPrompts, null, 2)
+				);
+				setImagePrompts(fetchedPrompts);
+				setFilteredImagePrompts(fetchedPrompts);
+			} catch (error) {
+				console.error("Error fetching image prompts:", error);
+				// setError("이미지 프롬프트 목록을 가져오는 중 오류가 발생했습니다.");
+			} finally {
+				setIsLoadingImagePrompts(false);
+			}
+		};
+
+		fetchImagePrompts();
 	}, []);
 
 	// 이미지 프롬프트 필터링
@@ -243,12 +280,16 @@ export default function ImageGeneratorPage() {
 		}
 	};
 
-	// 이미지 선택 토글
+	// 이미지 선택 토글 - 한 번에 하나의 이미지만 선택 가능하도록 수정
 	const toggleImageSelection = (index: number) => {
 		setGeneratedImages((prev) =>
-			prev.map((img, i) =>
-				i === index ? { ...img, selected: !img.selected } : img
-			)
+			prev.map((img, i) => {
+				if (i === index) {
+					return { ...img, selected: !img.selected }; // 선택된 이미지를 다시 클릭하면 선택 해제
+				} else {
+					return { ...img, selected: false }; // 다른 이미지는 선택 해제
+				}
+			})
 		);
 	};
 
@@ -267,60 +308,140 @@ export default function ImageGeneratorPage() {
 		}
 	};
 
-	// 선택된 이미지 저장
-	const saveSelectedImages = async () => {
-		const selectedToSave = generatedImages.filter((img) => img.selected);
+	// 선택된 이미지 저장 준비 (확인 다이얼로그 열기)
+	const handleOpenSaveConfirmDialog = () => {
+		const selectedImage = generatedImages.find((img) => img.selected);
 
-		if (selectedToSave.length === 0) {
+		if (!selectedImage) {
 			setError("저장할 이미지를 선택해주세요.");
 			return;
 		}
 
-		// S3에 저장할 때는 original_url을 사용해야 함
-		const imageUrlsToSave = selectedToSave
-			.map((img) => img.original_url || img.url) // original_url 우선 사용, 없으면 url 사용
-			.filter((url) => !!url); // 유효한 URL만 필터링
+		setImageToConfirm(selectedImage);
+		// 기본 이미지 이름 설정 (예: 프롬프트의 일부 또는 랜덤 생성)
+		// 여기서는 간단히 'generated_image'로 하지만, 필요시 더 복잡한 로직 추가 가능
+		setConfirmImageName(
+			selectedImage.filename ||
+				`generated_image_${new Date().getTime()}`.substring(0, 50)
+		);
+		setConfirmImageTags(""); // 태그 초기화
+		setIsConfirmDialogOpen(true);
+		setError(null);
+		setSaveSuccess(false);
+	};
 
-		if (imageUrlsToSave.length === 0) {
-			setError("S3에 저장할 유효한 이미지 URL이 없습니다.");
+	// 최종 S3 저장 및 DB 메타데이터 저장 로직 (예시)
+	const handleConfirmAndSaveToS3 = async () => {
+		if (!imageToConfirm || !confirmImageName.trim()) {
+			setError(
+				!confirmImageName.trim()
+					? "이미지 이름을 입력해주세요."
+					: "저장할 이미지가 없습니다."
+			);
 			return;
 		}
 
 		setIsSaving(true);
-		setSaveSuccess(false);
 		setError(null);
+		setSaveSuccess(false);
 
 		try {
-			const response = await fetch("/api/v1/image-generator/s3/save-images", {
+			// 1단계: S3에 이미지 업로드 (기존 save-images API 활용 또는 단일 저장 API)
+			// 백엔드는 S3 URL을 반환해야 함
+			const imageUrlToSave = imageToConfirm.original_url || imageToConfirm.url;
+			if (!imageUrlToSave) {
+				throw new Error("유효한 이미지 URL이 없습니다.");
+			}
+
+			const s3SaveResponse = await fetch(
+				"/api/v1/image-generator/s3/save-images", // 이 엔드포인트는 단일 URL도 처리 가능해야 함
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+					},
+					body: JSON.stringify({
+						image_urls: [imageUrlToSave], // 배열로 전달
+						// 만약 백엔드가 image_url과 is_base64를 함께 받는다면 아래와 같이 수정
+						// image_url: imageUrlToSave,
+						// is_base64: imageToConfirm.is_base64,
+					}),
+				}
+			);
+
+			if (!s3SaveResponse.ok) {
+				const errorData = await s3SaveResponse.json();
+				throw new Error(errorData.detail || "이미지 S3 저장에 실패했습니다.");
+			}
+
+			const s3SaveResult = await s3SaveResponse.json();
+			// s3SaveResult는 백엔드 응답 형식에 따라 s3_url을 추출
+			// 응답 예시: { "success": true, "message": "...", "saved_s3_urls": ["url1"], "failed_urls": null }
+			const s3Url =
+				s3SaveResult.success &&
+				Array.isArray(s3SaveResult.saved_s3_urls) &&
+				s3SaveResult.saved_s3_urls.length > 0
+					? s3SaveResult.saved_s3_urls[0]
+					: null; // 또는 undefined, 오류 처리에 따라
+
+			if (!s3Url) {
+				throw new Error(
+					s3SaveResult.message ||
+						"S3 URL을 받지 못했습니다. 응답 형식을 확인하세요."
+				);
+			}
+
+			console.log("S3 저장 성공:", s3Url);
+
+			// 2단계: DB에 메타데이터 저장 (새로운 API 엔드포인트 필요)
+			// 이 부분은 백엔드 API가 준비된 후 구현해야 합니다.
+			/*
+			const metadataToSave = {
+				s3_url: s3Url,
+				name: confirmImageName,
+				tags: confirmImageTags.split(',').map(tag => tag.trim()).filter(tag => tag),
+				prompt: imageToConfirm.prompt,
+				model_name: imageToConfirm.modelName,
+				steps: imageToConfirm.steps,
+				seed: imageToConfirm.seed,
+				original_url: imageToConfirm.original_url || imageToConfirm.url,
+				// 기타 필요한 메타데이터
+			};
+
+			const dbSaveResponse = await fetch("/api/v1/images/metadata/save", { // 예시 엔드포인트
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 					Authorization: `Bearer ${localStorage.getItem("access_token")}`,
 				},
-				body: JSON.stringify({
-					image_urls: imageUrlsToSave,
-					// 필요하다면 추가 메타데이터 전송
-					// prompt: prompt,
-					// model: selectedModel,
-				}),
+				body: JSON.stringify(metadataToSave),
 			});
 
-			if (!response.ok) {
-				const errorData = await response.json();
-				throw new Error(errorData.message || "이미지 S3 저장에 실패했습니다.");
+			if (!dbSaveResponse.ok) {
+				const errorData = await dbSaveResponse.json();
+				throw new Error(errorData.detail || "이미지 메타데이터 DB 저장에 실패했습니다.");
 			}
+			console.log("DB 메타데이터 저장 성공:", await dbSaveResponse.json());
+			*/
 
-			const data = await response.json();
-			console.log("S3 저장 결과:", data);
 			setSaveSuccess(true);
-			// 선택된 이미지들의 selected 상태를 false로 변경하거나, 목록에서 제거하는 등의 후처리 가능
-			// 예: setGeneratedImages(prev => prev.map(img => img.selected ? {...img, selected: false} : img));
+			setIsConfirmDialogOpen(false);
+			setImageToConfirm(null);
+			// 저장된 이미지는 generatedImages 목록에서 선택 해제
+			setGeneratedImages((prev) =>
+				prev.map((img) =>
+					img.url === (imageToConfirm.original_url || imageToConfirm.url)
+						? { ...img, selected: false }
+						: img
+				)
+			);
 		} catch (error) {
-			console.error("S3 이미지 저장 오류:", error);
+			console.error("이미지 저장 오류:", error);
 			setError(
 				error instanceof Error
 					? error.message
-					: "S3에 이미지 저장 중 오류가 발생했습니다."
+					: "이미지 저장 중 알 수 없는 오류가 발생했습니다."
 			);
 		} finally {
 			setIsSaving(false);
@@ -381,8 +502,13 @@ export default function ImageGeneratorPage() {
 						const imagesWithMetadata = (data.images || []).map((img: any) => ({
 							...img,
 							selected: false,
-							seed: seed,
+							prompt: prompt,
+							modelName: selectedModel,
 							steps: stepsToUse,
+							seed: seed,
+							is_base64:
+								selectedModel === "gpt-image-1" &&
+								img.url?.startsWith("data:image"),
 						}));
 						setGeneratedImages(imagesWithMetadata);
 					} else {
@@ -435,8 +561,13 @@ export default function ImageGeneratorPage() {
 							generatedImagesData.push({
 								...img,
 								selected: false,
-								seed: seedValues[i], // 각 이미지의 시드값 저장
-								steps: stepsToUse, // 사용된 스텝값 저장
+								prompt: prompt,
+								modelName: selectedModel,
+								seed: seedValues[i],
+								steps: stepsToUse,
+								is_base64:
+									selectedModel === "gpt-image-1" &&
+									img.url?.startsWith("data:image"),
 							});
 						}
 					}
@@ -474,6 +605,13 @@ export default function ImageGeneratorPage() {
 					const imagesWithSelection = (data.images || []).map((img: any) => ({
 						...img,
 						selected: false,
+						prompt: prompt,
+						modelName: selectedModel,
+						steps: undefined,
+						seed: undefined,
+						is_base64:
+							selectedModel === "gpt-image-1" &&
+							img.url?.startsWith("data:image"),
 					}));
 					setGeneratedImages(imagesWithSelection);
 				} else {
@@ -792,14 +930,16 @@ export default function ImageGeneratorPage() {
 							<span>생성된 이미지</span>
 							{generatedImages.length > 0 && (
 								<Button
-									onClick={saveSelectedImages}
+									onClick={handleOpenSaveConfirmDialog}
 									disabled={
-										isSaving || !generatedImages.some((img) => img.selected)
+										// 정확히 하나의 이미지만 선택되었을 때 활성화
+										isSaving ||
+										generatedImages.filter((img) => img.selected).length !== 1
 									}
 									size="sm"
 									variant="outline"
 								>
-									{isSaving ? "저장 중..." : "선택 이미지 저장"}
+									{isSaving ? "처리 중..." : "선택 이미지 저장"}
 								</Button>
 							)}
 						</CardTitle>
@@ -871,6 +1011,104 @@ export default function ImageGeneratorPage() {
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* S3 저장 확인 다이얼로그 */}
+			{imageToConfirm && (
+				<Dialog
+					open={isConfirmDialogOpen}
+					onOpenChange={setIsConfirmDialogOpen}
+				>
+					<DialogContent className="sm:max-w-[500px]">
+						<DialogHeader>
+							<DialogTitle>이미지 정보 확인 및 저장</DialogTitle>
+							<DialogDescription>
+								선택한 이미지의 세부 정보를 확인하고 저장하세요.
+							</DialogDescription>
+						</DialogHeader>
+						<div className="grid gap-4 py-4">
+							<div className="flex justify-center mb-4">
+								<img
+									src={imageToConfirm.url}
+									alt="저장할 이미지"
+									className="max-w-xs max-h-[200px] rounded-md shadow-md"
+								/>
+							</div>
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label htmlFor="imageName" className="text-right col-span-1">
+									이미지 이름
+								</Label>
+								<Input
+									id="imageName"
+									// value={confirmImageName}
+									onChange={(e) => setConfirmImageName(e.target.value)}
+									className="col-span-3"
+									placeholder="예: 강건우1"
+								/>
+							</div>
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label htmlFor="imageTags" className="text-right col-span-1">
+									태그 (쉼표 구분)
+								</Label>
+								<Input
+									id="imageTags"
+									// value={confirmImageTags}
+									onChange={(e) => setConfirmImageTags(e.target.value)}
+									className="col-span-3"
+									placeholder="예: 질투심, 조용한, 절제된욕망"
+								/>
+							</div>
+							{/* 메타데이터 표시 부분 UI 개선 */}
+							<div className="text-sm mt-3 p-3 bg-slate-50 rounded-md space-y-2">
+								<div>
+									<span className="font-semibold">원본 프롬프트:</span>
+									<p className="text-xs text-gray-700 break-all whitespace-pre-wrap mt-1">
+										{imageToConfirm.prompt}
+									</p>
+								</div>
+								<div className="grid grid-cols-2 gap-x-2 gap-y-1">
+									<div>
+										<span className="font-semibold">모델:</span>
+										<span className="ml-1 text-gray-700">
+											{imageToConfirm.modelName}
+										</span>
+									</div>
+									{imageToConfirm.steps !== undefined && (
+										<div>
+											<span className="font-semibold">스텝:</span>
+											<span className="ml-1 text-gray-700">
+												{imageToConfirm.steps}
+											</span>
+										</div>
+									)}
+									{imageToConfirm.seed !== undefined &&
+										imageToConfirm.modelName !== "gpt-image-1" && (
+											<div>
+												<span className="font-semibold">시드:</span>
+												<span className="ml-1 text-gray-700">
+													{imageToConfirm.seed}
+												</span>
+											</div>
+										)}
+								</div>
+							</div>
+						</div>
+						<DialogFooter>
+							<DialogClose asChild>
+								<Button type="button" variant="outline">
+									취소
+								</Button>
+							</DialogClose>
+							<Button
+								type="button"
+								onClick={handleConfirmAndSaveToS3}
+								disabled={isSaving || !confirmImageName.trim()}
+							>
+								{isSaving ? "저장 중..." : "저장"}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			)}
 
 			{/* 도움말 및 안내 */}
 			<Card className="mt-4">

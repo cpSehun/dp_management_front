@@ -1,814 +1,564 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Table,
 	TableBody,
-	TableCaption,
 	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-	Search,
-	Edit,
-	Trash2,
-	MoreHorizontal,
-	Plus,
-	History,
-	Clock,
-} from "lucide-react";
 import {
 	Dialog,
 	DialogContent,
-	DialogDescription,
-	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	DialogDescription,
+	DialogFooter,
+	DialogClose,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { MoreHorizontal, CheckCircle, GitCommit, Trash2 } from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { PaginationControls } from "@/components/pagination-controls";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { PromptPageHeader } from "@/components/admin/prompt-page-header";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2 } from "lucide-react";
+import { CreatePersonaPromptDialog } from "@/components/admin/prompts/persona/create-persona-prompt-dialog";
 
-// 프롬프트 타입 정의
+// 타입 정의
 interface PromptVersion {
-	id: number;
+	id?: string | number;
+	version?: number;
 	content: string;
-	createdAt: string;
-	isActive: boolean;
+	is_active: boolean;
+	created_at?: string;
 }
 
-interface Prompt {
+interface PersonaPrompt {
 	id: number;
 	name: string;
-	description: string;
+	description: string | null;
 	versions: PromptVersion[];
-	currentVersion: number;
-	tags: string[];
-	createdAt: string;
-	updatedAt: string;
-	category?: string;
+	tags: string[] | null;
+	created_at: string;
+	updated_at: string;
 }
 
-// 샘플 데이터
-const samplePrompts: Prompt[] = [
-	{
-		id: 1,
-		name: "전문가 페르소나",
-		description: "특정 분야의 전문가로서 답변하는 프롬프트",
-		versions: [
-			{
-				id: 1,
-				content:
-					"당신은 [분야]의 전문가입니다. 사용자의 질문에 전문적이고 정확한 정보를 제공해 주세요.",
-				createdAt: "2023-07-15T09:30:00Z",
-				isActive: false,
-			},
-			{
-				id: 2,
-				content:
-					"당신은 [분야]의 전문가로서 10년 이상의 경험을 가지고 있습니다. 사용자의 질문에 전문적이고 정확한 정보를 제공하되, 복잡한 내용도 이해하기 쉽게 설명해 주세요.",
-				createdAt: "2023-08-20T14:15:00Z",
-				isActive: true,
-			},
-		],
-		currentVersion: 2,
-		tags: ["전문가", "상담", "교육"],
-		category: "직업",
-		createdAt: "2023-07-15T09:30:00Z",
-		updatedAt: "2023-08-20T14:15:00Z",
-	},
-	{
-		id: 2,
-		name: "상담사 페르소나",
-		description: "상담사처럼 공감하며 대화하는 프롬프트",
-		versions: [
-			{
-				id: 1,
-				content:
-					"당신은 경험이 풍부한 심리 상담사입니다. 사용자의 감정을 공감하고 이해하며, 판단하지 않고 도움이 될 수 있는 대화를 제공해 주세요.",
-				createdAt: "2023-07-20T11:45:00Z",
-				isActive: true,
-			},
-		],
-		currentVersion: 1,
-		tags: ["상담", "심리", "공감"],
-		category: "심리",
-		createdAt: "2023-07-20T11:45:00Z",
-		updatedAt: "2023-07-20T11:45:00Z",
-	},
-	{
-		id: 3,
-		name: "역사적 인물 페르소나",
-		description: "역사적 인물의 말투와 지식으로 답변하는 프롬프트",
-		versions: [
-			{
-				id: 1,
-				content:
-					"당신은 [역사적 인물]입니다. 해당 인물의 시대 배경, 지식, 가치관, 말투를 반영하여 답변해 주세요.",
-				createdAt: "2023-08-05T17:20:00Z",
-				isActive: false,
-			},
-			{
-				id: 2,
-				content:
-					"당신은 [역사적 인물]입니다. 해당 인물의 시대 배경, 지식, 가치관, 말투를 반영하여 답변해 주세요. 또한 그 인물이 현대의 질문에 대해 어떻게 생각했을지 역사적 맥락을 고려하여 답변해 주세요.",
-				createdAt: "2023-09-10T13:10:00Z",
-				isActive: true,
-			},
-		],
-		currentVersion: 2,
-		tags: ["역사", "인물", "롤플레이"],
-		category: "역사",
-		createdAt: "2023-08-05T17:20:00Z",
-		updatedAt: "2023-09-10T13:10:00Z",
-	},
-];
+interface PaginatedPersonaPrompts {
+	total_items: number;
+	items: PersonaPrompt[];
+}
 
-// 카테고리 목록
-const categories = ["직업", "심리", "역사", "가상", "기타"];
+const ITEMS_PER_PAGE = 10;
+
+function formatDate(dateString?: string) {
+	if (!dateString) return "-";
+	const date = new Date(dateString);
+	return (
+		date.toLocaleDateString("ko-KR", {
+			year: "numeric",
+			month: "short",
+			day: "numeric",
+		}) +
+		" " +
+		date.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
+	);
+}
 
 export default function PersonaPromptsPage() {
-	const [prompts, setPrompts] = useState<Prompt[]>(samplePrompts);
+	const [prompts, setPrompts] = useState<PersonaPrompt[]>([]);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+
+	const [currentPage, setCurrentPage] = useState(1);
+	const [totalPrompts, setTotalPrompts] = useState(0);
 	const [searchTerm, setSearchTerm] = useState("");
-	const [filteredPrompts, setFilteredPrompts] = useState<Prompt[]>(prompts);
+	const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
 
-	// 대화상자 상태
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-	const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
-	const [isAddVersionDialogOpen, setIsAddVersionDialogOpen] = useState(false);
+	const [isSubmitting, setIsSubmitting] = useState(false);
 
-	// 현재 선택된 프롬프트와 버전
-	const [currentPrompt, setCurrentPrompt] = useState<Prompt | null>(null);
-	const [formData, setFormData] = useState({
-		name: "",
-		description: "",
-		content: "",
-		tags: "",
-		category: "",
-	});
+	const [isVersionHistoryDialogOpen, setIsVersionHistoryDialogOpen] =
+		useState(false);
+	const [selectedPromptForHistory, setSelectedPromptForHistory] =
+		useState<PersonaPrompt | null>(null);
+	const [selectedPrompts, setSelectedPrompts] = useState<number[]>([]);
 
-	// 검색 기능
-	const handleSearch = (term: string) => {
+	useEffect(() => {
+		const handler = setTimeout(() => {
+			setDebouncedSearchTerm(searchTerm);
+		}, 500);
+		return () => clearTimeout(handler);
+	}, [searchTerm]);
+
+	const fetchPersonaPrompts = useCallback(
+		async (page: number, currentSearchTerm?: string) => {
+			setIsLoading(true);
+			setError(null);
+			try {
+				const token = localStorage.getItem("access_token");
+				if (!token) throw new Error("Access token not found.");
+
+				const skip = (page - 1) * ITEMS_PER_PAGE;
+				let url = `/api/v1/prompts/persona?skip=${skip}&limit=${ITEMS_PER_PAGE}`;
+				const termToUse =
+					typeof currentSearchTerm === "string"
+						? currentSearchTerm
+						: debouncedSearchTerm;
+				if (termToUse) {
+					url += `&searchTerm=${encodeURIComponent(termToUse)}`;
+				}
+
+				const response = await fetch(url, {
+					headers: { Authorization: `Bearer ${token}` },
+				});
+
+				if (!response.ok) {
+					const errData = await response.json().catch(() => ({}));
+					throw new Error(
+						errData.detail ||
+							`Failed to fetch persona prompts: ${response.statusText}`
+					);
+				}
+				const data: PaginatedPersonaPrompts = await response.json();
+				setPrompts(data.items);
+				setTotalPrompts(data.total_items);
+			} catch (err) {
+				console.error("Error fetching persona prompts:", err);
+				const message =
+					err instanceof Error
+						? err.message
+						: "페르소나 프롬프트 목록 로딩 중 오류 발생";
+				setError(message);
+				toast.error(message);
+				setPrompts([]);
+				setTotalPrompts(0);
+			} finally {
+				setIsLoading(false);
+			}
+		},
+		[debouncedSearchTerm]
+	);
+
+	useEffect(() => {
+		fetchPersonaPrompts(currentPage, debouncedSearchTerm);
+	}, [currentPage, debouncedSearchTerm, fetchPersonaPrompts]);
+
+	const handlePageChange = (page: number) => {
+		setCurrentPage(page);
+	};
+
+	const handleSearchTermChange = (term: string) => {
 		setSearchTerm(term);
-		if (!term.trim()) {
-			setFilteredPrompts(prompts);
-			return;
-		}
-
-		const lowerTerm = term.toLowerCase();
-		const filtered = prompts.filter(
-			(prompt) =>
-				prompt.name.toLowerCase().includes(lowerTerm) ||
-				prompt.description.toLowerCase().includes(lowerTerm) ||
-				prompt.versions.some((v) =>
-					v.content.toLowerCase().includes(lowerTerm)
-				) ||
-				prompt.tags.some((tag) => tag.toLowerCase().includes(lowerTerm)) ||
-				(prompt.category && prompt.category.toLowerCase().includes(lowerTerm))
-		);
-
-		setFilteredPrompts(filtered);
+		setCurrentPage(1);
 	};
 
-	// 생성 대화상자 열기
-	const handleOpenCreate = () => {
-		setFormData({
-			name: "",
-			description: "",
-			content: "",
-			tags: "",
-			category: categories[0],
-		});
-		setIsCreateDialogOpen(true);
-	};
+	const handleCreatePrompt = async (
+		name: string,
+		description: string,
+		tagsAsString: string,
+		content: string
+	) => {
+		setIsSubmitting(true);
+		setError(null);
 
-	// 수정 대화상자 열기
-	const handleOpenEdit = (prompt: Prompt) => {
-		setCurrentPrompt(prompt);
-		const activeVersion =
-			prompt.versions.find((v) => v.isActive)?.content || "";
+		try {
+			const token = localStorage.getItem("access_token");
+			if (!token) {
+				throw new Error("Access token not found. Please login again.");
+			}
 
-		setFormData({
-			name: prompt.name,
-			description: prompt.description,
-			content: activeVersion,
-			tags: prompt.tags.join(", "),
-			category: prompt.category || categories[0],
-		});
+			const newPromptData = {
+				name: name,
+				description: description || null,
+				versions: [{ content: content, is_active: true }],
+				tags: tagsAsString
+					.split(",")
+					.map((tag: string) => tag.trim())
+					.filter((tag: string) => tag.length > 0),
+			};
 
-		setIsEditDialogOpen(true);
-	};
+			console.log(
+				"Data being sent to /api/v1/prompts/persona:",
+				JSON.stringify(newPromptData, null, 2)
+			);
 
-	// 삭제 대화상자 열기
-	const handleOpenDelete = (prompt: Prompt) => {
-		setCurrentPrompt(prompt);
-		setIsDeleteDialogOpen(true);
-	};
-
-	// 버전 관리 대화상자 열기
-	const handleOpenVersions = (prompt: Prompt) => {
-		setCurrentPrompt(prompt);
-		setIsVersionDialogOpen(true);
-	};
-
-	// 새 버전 추가 대화상자 열기
-	const handleOpenAddVersion = (prompt: Prompt) => {
-		setCurrentPrompt(prompt);
-		const activeVersion =
-			prompt.versions.find((v) => v.isActive)?.content || "";
-
-		setFormData({
-			...formData,
-			content: activeVersion,
-		});
-
-		setIsAddVersionDialogOpen(true);
-	};
-
-	// 새 프롬프트 생성
-	const handleCreate = () => {
-		const tags = formData.tags
-			.split(",")
-			.map((tag) => tag.trim())
-			.filter((tag) => tag !== "");
-
-		const newPrompt: Prompt = {
-			id: Math.max(...prompts.map((p) => p.id), 0) + 1,
-			name: formData.name,
-			description: formData.description,
-			versions: [
-				{
-					id: 1,
-					content: formData.content,
-					createdAt: new Date().toISOString(),
-					isActive: true,
+			const response = await fetch("/api/v1/prompts/persona/", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
 				},
-			],
-			currentVersion: 1,
-			tags,
-			category: formData.category,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		};
+				body: JSON.stringify(newPromptData),
+			});
 
-		setPrompts([...prompts, newPrompt]);
-		setIsCreateDialogOpen(false);
-	};
-
-	// 프롬프트 수정
-	const handleEdit = () => {
-		if (!currentPrompt) return;
-
-		const tags = formData.tags
-			.split(",")
-			.map((tag) => tag.trim())
-			.filter((tag) => tag !== "");
-
-		// 현재 버전의 내용 업데이트
-		const updatedVersions = currentPrompt.versions.map((v) => {
-			if (v.isActive) {
-				return { ...v, content: formData.content };
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({
+					detail: "Unknown error occurred during persona prompt creation",
+				}));
+				const errorMessage = Array.isArray(errorData.detail)
+					? errorData.detail
+							.map((err: any) => `${err.loc.join(".")} - ${err.msg}`)
+							.join(", ")
+					: errorData.detail || "Failed to create persona prompt";
+				throw new Error(errorMessage);
 			}
-			return v;
-		});
 
-		const updatedPrompts = prompts.map((p) => {
-			if (p.id === currentPrompt.id) {
-				return {
-					...p,
-					name: formData.name,
-					description: formData.description,
-					versions: updatedVersions,
-					tags,
-					category: formData.category,
-					updatedAt: new Date().toISOString(),
-				};
+			const createdPrompt: PersonaPrompt = await response.json();
+			toast.success(
+				`페르소나 프롬프트 "${createdPrompt.name}"이(가) 성공적으로 생성되었습니다.`
+			);
+			setIsCreateDialogOpen(false);
+			fetchPersonaPrompts(1, "");
+			setCurrentPage(1);
+			setSearchTerm("");
+		} catch (err: any) {
+			console.error("Error creating persona prompt:", err);
+			toast.error(
+				err.message || "페르소나 프롬프트 생성 중 오류가 발생했습니다."
+			);
+			setError(err.message || "페르소나 프롬프트 생성 중 오류가 발생했습니다.");
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	const handleOpenVersionHistoryDialog = (prompt: PersonaPrompt) => {
+		setSelectedPromptForHistory(prompt);
+		setIsVersionHistoryDialogOpen(true);
+	};
+
+	const handleSetActiveVersion = async (
+		promptId: number,
+		versionId: number
+	) => {
+		if (!selectedPromptForHistory) return;
+		try {
+			const token = localStorage.getItem("access_token");
+			if (!token) throw new Error("Access token not found.");
+			const response = await fetch(
+				`/api/v1/prompts/persona/${promptId}/versions/${versionId}/activate`,
+				{
+					method: "PUT",
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+			if (!response.ok) {
+				const errData = await response.json().catch(() => ({}));
+				throw new Error(errData.detail || "Failed to set active version.");
 			}
-			return p;
-		});
-
-		setPrompts(updatedPrompts);
-		setIsEditDialogOpen(false);
-	};
-
-	// 프롬프트 삭제
-	const handleDelete = () => {
-		if (!currentPrompt) return;
-
-		const updatedPrompts = prompts.filter((p) => p.id !== currentPrompt.id);
-		setPrompts(updatedPrompts);
-		setIsDeleteDialogOpen(false);
-	};
-
-	// 새 버전 추가
-	const handleAddVersion = () => {
-		if (!currentPrompt) return;
-
-		const newVersionId =
-			Math.max(...currentPrompt.versions.map((v) => v.id), 0) + 1;
-
-		// 기존 버전 비활성화, 새 버전 활성화
-		const updatedVersions = currentPrompt.versions.map((v) => ({
-			...v,
-			isActive: false,
-		}));
-
-		updatedVersions.push({
-			id: newVersionId,
-			content: formData.content,
-			createdAt: new Date().toISOString(),
-			isActive: true,
-		});
-
-		const updatedPrompts = prompts.map((p) => {
-			if (p.id === currentPrompt.id) {
-				return {
-					...p,
-					versions: updatedVersions,
-					currentVersion: newVersionId,
-					updatedAt: new Date().toISOString(),
-				};
+			const updatedPrompt: PersonaPrompt = await response.json();
+			setPrompts((prevPrompts) =>
+				prevPrompts.map((p) => (p.id === updatedPrompt.id ? updatedPrompt : p))
+			);
+			if (
+				selectedPromptForHistory &&
+				selectedPromptForHistory.id === updatedPrompt.id
+			) {
+				setSelectedPromptForHistory(updatedPrompt);
 			}
-			return p;
-		});
-
-		setPrompts(updatedPrompts);
-		setIsAddVersionDialogOpen(false);
+			toast.success(`버전 ${versionId}이(가) 활성 버전으로 설정되었습니다.`);
+		} catch (err) {
+			console.error("Error setting active version:", err);
+			toast.error(
+				err instanceof Error ? err.message : "활성 버전 설정 중 오류 발생"
+			);
+		}
 	};
 
-	// 버전 활성화
-	const handleActivateVersion = (versionId: number) => {
-		if (!currentPrompt) return;
-
-		const updatedVersions = currentPrompt.versions.map((v) => ({
-			...v,
-			isActive: v.id === versionId,
-		}));
-
-		const updatedPrompts = prompts.map((p) => {
-			if (p.id === currentPrompt.id) {
-				return {
-					...p,
-					versions: updatedVersions,
-					currentVersion: versionId,
-					updatedAt: new Date().toISOString(),
-				};
+	const handleDeletePrompt = async (promptId: number) => {
+		if (
+			!window.confirm(
+				"정말로 이 프롬프트를 삭제하시겠습니까? 모든 버전이 함께 삭제됩니다."
+			)
+		)
+			return;
+		try {
+			const token = localStorage.getItem("access_token");
+			if (!token) throw new Error("Access token not found.");
+			const response = await fetch(`/api/v1/prompts/persona/${promptId}`, {
+				method: "DELETE",
+				headers: { Authorization: `Bearer ${token}` },
+			});
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.detail || "Failed to delete persona prompt.");
 			}
-			return p;
-		});
-
-		setPrompts(updatedPrompts);
-		setIsVersionDialogOpen(false);
+			toast.success("페르소나 프롬프트가 삭제되었습니다.");
+			fetchPersonaPrompts(currentPage, debouncedSearchTerm);
+			setSelectedPrompts(selectedPrompts.filter((id) => id !== promptId));
+		} catch (error: any) {
+			console.error("Error deleting persona prompt:", error);
+			toast.error(
+				error.message || "페르소나 프롬프트 삭제 중 오류가 발생했습니다."
+			);
+		}
 	};
 
-	// 날짜 포맷 함수
-	const formatDate = (dateString: string) => {
-		const date = new Date(dateString);
-		return date.toLocaleDateString("ko-KR", {
-			year: "numeric",
-			month: "long",
-			day: "numeric",
-		});
-	};
+	const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+	const endIndex = startIndex + ITEMS_PER_PAGE;
+
+	if (isLoading && prompts.length === 0 && !searchTerm) {
+		return (
+			<div className="flex justify-center items-center h-screen">
+				<div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500"></div>
+			</div>
+		);
+	}
+
+	if (error && prompts.length === 0) {
+		return <div className="text-red-500 text-center p-6">Error: {error}</div>;
+	}
 
 	return (
-		<div className="space-y-4">
-			<div className="flex justify-between items-center">
-				<div className="flex items-center space-x-2 w-full max-w-sm">
-					<Input
-						placeholder="이름, 태그, 설명으로 검색..."
-						value={searchTerm}
-						onChange={(e) => handleSearch(e.target.value)}
-					/>
-					<Button type="submit" size="icon" variant="ghost">
-						<Search className="h-4 w-4" />
-						<span className="sr-only">검색</span>
-					</Button>
-				</div>
-				<Button onClick={handleOpenCreate}>
-					<Plus className="mr-2 h-4 w-4" />
-					프롬프트 생성
-				</Button>
-			</div>
+		<div className="container mx-auto p-2">
+			<PromptPageHeader
+				searchPlaceholder="페르소나 프롬프트 검색..."
+				searchTerm={searchTerm}
+				onSearchTermChange={handleSearchTermChange}
+				onCreateClick={() => setIsCreateDialogOpen(true)}
+				createButtonText="프롬프트 생성"
+			/>
 
-			<Table>
-				<TableCaption>페르소나 프롬프트 목록</TableCaption>
-				<TableHeader>
-					<TableRow>
-						<TableHead>이름</TableHead>
-						<TableHead>설명</TableHead>
-						<TableHead>카테고리</TableHead>
-						<TableHead>태그</TableHead>
-						<TableHead>버전</TableHead>
-						<TableHead>최종 업데이트</TableHead>
-						<TableHead className="text-right">관리</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{filteredPrompts.length === 0 ? (
+			<CreatePersonaPromptDialog
+				isOpen={isCreateDialogOpen}
+				onClose={() => setIsCreateDialogOpen(false)}
+				onCreate={handleCreatePrompt}
+				isSubmitting={isSubmitting}
+			/>
+
+			<div className="rounded-md border mt-2">
+				<Table>
+					<TableHeader>
 						<TableRow>
-							<TableCell colSpan={7} className="text-center py-4 text-gray-500">
-								프롬프트가 없습니다
-							</TableCell>
+							<TableHead className="w-[40px]">
+								<Checkbox
+									checked={
+										prompts.length > 0 &&
+										selectedPrompts.length === prompts.length
+									}
+									onCheckedChange={(checked) => {
+										if (checked) {
+											setSelectedPrompts(prompts.map((p) => p.id));
+										} else {
+											setSelectedPrompts([]);
+										}
+									}}
+								/>
+							</TableHead>
+							<TableHead className="min-w-[150px]">이름</TableHead>
+							<TableHead className="min-w-[200px] max-w-[300px] truncate">
+								설명
+							</TableHead>
+							<TableHead className="min-w-[150px]">태그</TableHead>
+							<TableHead className="min-w-[100px]">현재 버전</TableHead>
+							<TableHead className="min-w-[120px]">생성자</TableHead>
+							<TableHead className="min-w-[150px]">최종 수정일</TableHead>
+							<TableHead className="text-right w-[100px]">액션</TableHead>
 						</TableRow>
-					) : (
-						filteredPrompts.map((prompt) => (
-							<TableRow key={prompt.id}>
-								<TableCell className="font-medium">{prompt.name}</TableCell>
-								<TableCell>{prompt.description}</TableCell>
-								<TableCell>
-									<Badge variant="secondary">{prompt.category || "기타"}</Badge>
-								</TableCell>
-								<TableCell>
-									<div className="flex flex-wrap gap-1">
-										{prompt.tags.map((tag) => (
-											<Badge key={tag} variant="outline">
-												{tag}
-											</Badge>
-										))}
-									</div>
-								</TableCell>
-								<TableCell>
-									<Badge variant="secondary">V{prompt.currentVersion}</Badge>
-								</TableCell>
-								<TableCell>{formatDate(prompt.updatedAt)}</TableCell>
-								<TableCell className="text-right">
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button variant="ghost" size="icon">
-												<MoreHorizontal className="h-4 w-4" />
-												<span className="sr-only">관리 메뉴</span>
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end">
-											<DropdownMenuLabel>작업</DropdownMenuLabel>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem onClick={() => handleOpenEdit(prompt)}>
-												<Edit className="mr-2 h-4 w-4" />
-												수정
-											</DropdownMenuItem>
-											<DropdownMenuItem
-												onClick={() => handleOpenVersions(prompt)}
-											>
-												<History className="mr-2 h-4 w-4" />
-												버전 관리
-											</DropdownMenuItem>
-											<DropdownMenuItem
-												onClick={() => handleOpenAddVersion(prompt)}
-											>
-												<Plus className="mr-2 h-4 w-4" />새 버전 추가
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												onClick={() => handleOpenDelete(prompt)}
-												className="text-red-600"
-											>
-												<Trash2 className="mr-2 h-4 w-4" />
-												삭제
-											</DropdownMenuItem>
-										</DropdownMenuContent>
-									</DropdownMenu>
+					</TableHeader>
+					<TableBody>
+						{isLoading ? (
+							<TableRow>
+								<TableCell colSpan={8} className="h-24 text-center">
+									데이터 로딩 중...
 								</TableCell>
 							</TableRow>
-						))
-					)}
-				</TableBody>
-			</Table>
+						) : error ? (
+							<TableRow>
+								<TableCell
+									colSpan={8}
+									className="h-24 text-center text-red-500"
+								>
+									{error}
+								</TableCell>
+							</TableRow>
+						) : prompts.length === 0 ? (
+							<TableRow>
+								<TableCell colSpan={8} className="h-24 text-center">
+									데이터가 없습니다.
+								</TableCell>
+							</TableRow>
+						) : (
+							prompts.slice(startIndex, endIndex).map((prompt) => {
+								const activeVersion = prompt.versions.find((v) => v.is_active);
+								const currentVersionDisplay = activeVersion
+									? `V.${activeVersion.version}`
+									: "N/A";
+								return (
+									<TableRow key={prompt.id}>
+										<TableCell>
+											<Checkbox
+												checked={selectedPrompts.includes(prompt.id)}
+												onCheckedChange={(checked) => {
+													if (checked) {
+														setSelectedPrompts([...selectedPrompts, prompt.id]);
+													} else {
+														setSelectedPrompts(
+															selectedPrompts.filter((id) => id !== prompt.id)
+														);
+													}
+												}}
+											/>
+										</TableCell>
+										<TableCell className="font-medium">{prompt.name}</TableCell>
+										<TableCell className="truncate max-w-[300px]">
+											{prompt.description || "-"}
+										</TableCell>
+										<TableCell>
+											{prompt.tags && prompt.tags.length > 0
+												? prompt.tags.map((tag: string) => (
+														<Badge key={tag} variant="outline" className="mr-1">
+															{tag}
+														</Badge>
+												  ))
+												: "N/A"}
+										</TableCell>
+										<TableCell>{currentVersionDisplay}</TableCell>
+										<TableCell>N/A</TableCell>
+										<TableCell>{formatDate(prompt.updated_at)}</TableCell>
+										<TableCell className="text-right">
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button variant="ghost" size="icon">
+														<MoreHorizontal className="h-4 w-4" />
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end">
+													<DropdownMenuItem
+														onClick={() =>
+															handleOpenVersionHistoryDialog(prompt)
+														}
+													>
+														수정
+													</DropdownMenuItem>
+													<DropdownMenuItem
+														onClick={() => handleDeletePrompt(prompt.id)}
+														className="text-destructive focus:text-destructive"
+													>
+														삭제
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</TableCell>
+									</TableRow>
+								);
+							})
+						)}
+					</TableBody>
+				</Table>
+			</div>
 
-			{/* 생성 대화상자 */}
-			<Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-				<DialogContent className="sm:max-w-[500px]">
-					<DialogHeader>
-						<DialogTitle>새 페르소나 프롬프트 생성</DialogTitle>
-						<DialogDescription>
-							AI의 페르소나 설정을 위한 새 프롬프트를 작성하세요.
-						</DialogDescription>
-					</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="name" className="text-right">
-								이름
-							</Label>
-							<Input
-								id="name"
-								value={formData.name}
-								onChange={(e) =>
-									setFormData({ ...formData, name: e.target.value })
-								}
-								className="col-span-3"
-							/>
-						</div>
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="description" className="text-right">
-								설명
-							</Label>
-							<Input
-								id="description"
-								value={formData.description}
-								onChange={(e) =>
-									setFormData({ ...formData, description: e.target.value })
-								}
-								className="col-span-3"
-							/>
-						</div>
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="category" className="text-right">
-								카테고리
-							</Label>
-							<select
-								id="category"
-								value={formData.category}
-								onChange={(e) =>
-									setFormData({ ...formData, category: e.target.value })
-								}
-								className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								{categories.map((category) => (
-									<option key={category} value={category}>
-										{category}
-									</option>
-								))}
-							</select>
-						</div>
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="tags" className="text-right">
-								태그
-							</Label>
-							<Input
-								id="tags"
-								value={formData.tags}
-								onChange={(e) =>
-									setFormData({ ...formData, tags: e.target.value })
-								}
-								className="col-span-3"
-								placeholder="쉼표로 구분 (예: 전문가, 상담, 역사)"
-							/>
-						</div>
-						<div className="grid grid-cols-4 items-start gap-4">
-							<Label htmlFor="content" className="text-right pt-2">
-								프롬프트 내용
-							</Label>
-							<Textarea
-								id="content"
-								value={formData.content}
-								onChange={(e) =>
-									setFormData({ ...formData, content: e.target.value })
-								}
-								className="col-span-3"
-								rows={5}
-							/>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setIsCreateDialogOpen(false)}
-						>
-							취소
-						</Button>
-						<Button onClick={handleCreate}>생성</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			{totalPrompts > ITEMS_PER_PAGE && (
+				<PaginationControls
+					currentPage={currentPage}
+					totalPages={Math.ceil(totalPrompts / ITEMS_PER_PAGE)}
+					onPageChange={handlePageChange}
+				/>
+			)}
 
-			{/* 수정 대화상자 */}
-			<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-				<DialogContent className="sm:max-w-[500px]">
-					<DialogHeader>
-						<DialogTitle>프롬프트 수정</DialogTitle>
-						<DialogDescription>프롬프트 정보를 수정하세요.</DialogDescription>
-					</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="name" className="text-right">
-								이름
-							</Label>
-							<Input
-								id="name"
-								value={formData.name}
-								onChange={(e) =>
-									setFormData({ ...formData, name: e.target.value })
-								}
-								className="col-span-3"
-							/>
-						</div>
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="description" className="text-right">
-								설명
-							</Label>
-							<Input
-								id="description"
-								value={formData.description}
-								onChange={(e) =>
-									setFormData({ ...formData, description: e.target.value })
-								}
-								className="col-span-3"
-							/>
-						</div>
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="editCategory" className="text-right">
-								카테고리
-							</Label>
-							<select
-								id="editCategory"
-								value={formData.category}
-								onChange={(e) =>
-									setFormData({ ...formData, category: e.target.value })
-								}
-								className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								{categories.map((category) => (
-									<option key={category} value={category}>
-										{category}
-									</option>
-								))}
-							</select>
-						</div>
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="tags" className="text-right">
-								태그
-							</Label>
-							<Input
-								id="tags"
-								value={formData.tags}
-								onChange={(e) =>
-									setFormData({ ...formData, tags: e.target.value })
-								}
-								className="col-span-3"
-								placeholder="쉼표로 구분 (예: 전문가, 상담, 역사)"
-							/>
-						</div>
-						<div className="grid grid-cols-4 items-start gap-4">
-							<Label htmlFor="content" className="text-right pt-2">
-								프롬프트 내용
-							</Label>
-							<Textarea
-								id="content"
-								value={formData.content}
-								onChange={(e) =>
-									setFormData({ ...formData, content: e.target.value })
-								}
-								className="col-span-3"
-								rows={5}
-							/>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setIsEditDialogOpen(false)}
-						>
-							취소
-						</Button>
-						<Button onClick={handleEdit}>저장</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			{/* 삭제 확인 대화상자 */}
-			<Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-				<DialogContent className="sm:max-w-[425px]">
-					<DialogHeader>
-						<DialogTitle>프롬프트 삭제</DialogTitle>
-						<DialogDescription>
-							'{currentPrompt?.name}' 프롬프트를 삭제하시겠습니까? 이 작업은
-							되돌릴 수 없습니다.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setIsDeleteDialogOpen(false)}
-						>
-							취소
-						</Button>
-						<Button variant="destructive" onClick={handleDelete}>
-							삭제
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			{/* 버전 관리 대화상자 */}
-			<Dialog open={isVersionDialogOpen} onOpenChange={setIsVersionDialogOpen}>
-				<DialogContent className="sm:max-w-[600px]">
-					<DialogHeader>
-						<DialogTitle>버전 관리: {currentPrompt?.name}</DialogTitle>
-						<DialogDescription>
-							각 버전을 확인하고 관리합니다.
-						</DialogDescription>
-					</DialogHeader>
-					<div className="max-h-[400px] overflow-y-auto">
-						{currentPrompt?.versions.map((version, index) => (
-							<div
-								key={version.id}
-								className={`p-3 my-2 rounded-md border ${
-									version.isActive
-										? "border-primary bg-primary/5"
-										: "border-gray-200"
-								}`}
-							>
-								<div className="flex justify-between items-center mb-2">
-									<div className="flex items-center gap-2">
-										<span className="font-medium">버전 {version.id}</span>
-										{version.isActive && (
-											<Badge variant="default">현재 활성</Badge>
-										)}
-									</div>
-									<div className="flex items-center gap-2">
-										<span className="text-xs text-gray-500 flex items-center">
-											<Clock className="h-3 w-3 mr-1" />
-											{formatDate(version.createdAt)}
-										</span>
-										{!version.isActive && (
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() => handleActivateVersion(version.id)}
-											>
-												활성화
-											</Button>
-										)}
-									</div>
-								</div>
-								<div className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
-									{version.content}
-								</div>
-							</div>
-						))}
-					</div>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setIsVersionDialogOpen(false)}
-						>
-							닫기
-						</Button>
-						<Button
-							onClick={() => {
-								setIsVersionDialogOpen(false);
-								handleOpenAddVersion(currentPrompt!);
-							}}
-						>
-							새 버전 추가
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			{/* 새 버전 추가 대화상자 */}
-			<Dialog
-				open={isAddVersionDialogOpen}
-				onOpenChange={setIsAddVersionDialogOpen}
-			>
-				<DialogContent className="sm:max-w-[500px]">
-					<DialogHeader>
-						<DialogTitle>새 버전 추가: {currentPrompt?.name}</DialogTitle>
-						<DialogDescription>
-							현재 버전을 기반으로 새 버전을 생성합니다.
-						</DialogDescription>
-					</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<div className="grid grid-cols-4 items-start gap-4">
-							<Label htmlFor="newVersionContent" className="text-right pt-2">
-								프롬프트 내용
-							</Label>
-							<Textarea
-								id="newVersionContent"
-								value={formData.content}
-								onChange={(e) =>
-									setFormData({ ...formData, content: e.target.value })
-								}
-								className="col-span-3"
-								rows={8}
-							/>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setIsAddVersionDialogOpen(false)}
-						>
-							취소
-						</Button>
-						<Button onClick={handleAddVersion}>저장</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			{selectedPromptForHistory && (
+				<Dialog
+					open={isVersionHistoryDialogOpen}
+					onOpenChange={setIsVersionHistoryDialogOpen}
+				>
+					<DialogContent className="sm:max-w-[700px] md:max-w-[800px] lg:max-w-[900px]">
+						<DialogHeader>
+							<DialogTitle>
+								버전 히스토리: {selectedPromptForHistory.name}
+							</DialogTitle>
+							<DialogDescription>
+								프롬프트 '{selectedPromptForHistory.name}'의 모든 버전
+								목록입니다.
+							</DialogDescription>
+						</DialogHeader>
+						<ScrollArea className="max-h-[60vh] p-1">
+							<Table className="mt-4">
+								<TableHeader>
+									<TableRow>
+										<TableHead className="w-[10%]">상태</TableHead>
+										<TableHead className="w-[15%]">버전 ID</TableHead>
+										<TableHead className="w-[50%]">내용 (일부)</TableHead>
+										<TableHead className="w-[20%]">생성일</TableHead>
+										<TableHead className="text-right w-[5%]">작업</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{selectedPromptForHistory.versions
+										.slice()
+										.sort(
+											(a, b) =>
+												new Date(b.created_at!).getTime() -
+												new Date(a.created_at!).getTime()
+										)
+										.map((version, index) => (
+											<TableRow key={version.id || `version-${index}`}>
+												<TableCell>
+													{version.is_active ? (
+														<Badge variant="default">
+															<CheckCircle className="mr-1 h-3 w-3 inline-block" />
+															현재 활성
+														</Badge>
+													) : (
+														<Badge variant="outline">이전 버전</Badge>
+													)}
+												</TableCell>
+												<TableCell className="text-xs">
+													{version.id || "N/A"}
+												</TableCell>
+												<TableCell
+													className="text-xs max-w-md truncate"
+													title={version.content}
+												>
+													{version.content}
+												</TableCell>
+												<TableCell className="text-xs">
+													{formatDate(version.created_at)}
+												</TableCell>
+												<TableCell className="text-right">
+													{!version.is_active && (
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() =>
+																handleSetActiveVersion(
+																	selectedPromptForHistory!.id as number,
+																	version.id! as number
+																)
+															}
+														>
+															활성으로 설정
+														</Button>
+													)}
+												</TableCell>
+											</TableRow>
+										))}
+								</TableBody>
+							</Table>
+						</ScrollArea>
+						<DialogFooter className="mt-4">
+							<DialogClose asChild>
+								<Button type="button" variant="outline">
+									닫기
+								</Button>
+							</DialogClose>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			)}
 		</div>
 	);
 }
