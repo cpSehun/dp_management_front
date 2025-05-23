@@ -22,7 +22,7 @@ interface CreatePersonaPromptDialogProps {
 	onClose: () => void;
 	onCreate: (
 		name: string,
-		description: string,
+		llm_prompt: string,
 		tags: string,
 		content: string
 		// is_enabled: boolean // is_enabled 제거
@@ -37,7 +37,7 @@ export function CreatePersonaPromptDialog({
 	isSubmitting,
 }: CreatePersonaPromptDialogProps) {
 	const [name, setName] = useState("");
-	const [description, setDescription] = useState("");
+	const [llmPrompt, setLlmPrompt] = useState("");
 	const [content, setContent] = useState("");
 	const [tags, setTags] = useState("");
 	// const [isEnabled, setIsEnabled] = useState(true); // is_enabled 제거
@@ -45,7 +45,7 @@ export function CreatePersonaPromptDialog({
 	useEffect(() => {
 		if (isOpen) {
 			setName("");
-			setDescription("");
+			setLlmPrompt("");
 			setContent("");
 			setTags("");
 			// setIsEnabled(true); // is_enabled 제거
@@ -57,11 +57,11 @@ export function CreatePersonaPromptDialog({
 			toast.error("페르소나 프롬프트 이름은 필수입니다.");
 			return;
 		}
-		if (!content.trim()) {
+		if (!llmPrompt.trim()) {
 			toast.error("페르소나 프롬프트 내용은 필수입니다.");
 			return;
 		}
-		await onCreate(name, description, tags, content); // isEnabled 제거
+		await onCreate(name, llmPrompt, tags, content); // isEnabled 제거
 	};
 
 	return (
@@ -75,7 +75,7 @@ export function CreatePersonaPromptDialog({
 				<DialogHeader>
 					<DialogTitle>새 페르소나 프롬프트 생성</DialogTitle>
 					<DialogDescription>
-						페르소나 정의에 사용될 프롬프트의 이름, 설명, 첫 버전 내용, 태그를
+						페르소나 정의에 사용될 프롬프트의 이름, 내용, 첫 버전 내용, 태그를
 						입력하세요.
 					</DialogDescription>
 				</DialogHeader>
@@ -96,32 +96,29 @@ export function CreatePersonaPromptDialog({
 							disabled={isSubmitting}
 						/>
 					</div>
-					<div className="grid grid-cols-4 items-center gap-4">
-						<Label
-							htmlFor="persona-prompt-description"
-							className="text-right col-span-1"
-						>
-							설명
+					<div className="grid grid-cols-4 items-start gap-4">
+						<Label htmlFor="llm-prompt" className="text-right col-span-1 pt-2">
+							LLM 프롬프트*
 						</Label>
-						<Input
-							id="persona-prompt-description"
-							value={description}
-							onChange={(e) => setDescription(e.target.value)}
-							className="col-span-3"
-							placeholder="이 페르소나 프롬프트에 대한 간략한 설명"
+						<Textarea
+							id="llm-prompt"
+							value={llmPrompt}
+							onChange={(e) => setLlmPrompt(e.target.value)}
+							className="col-span-3 min-h-[150px]"
+							placeholder="페르소나 정의에 사용될 프롬프트 내용을 입력하세요..."
 							disabled={isSubmitting}
 						/>
 					</div>
 					<div className="grid grid-cols-4 items-start gap-4">
 						<Label htmlFor="content" className="text-right col-span-1 pt-2">
-							프롬프트*
+							버전 내용
 						</Label>
 						<Textarea
 							id="content"
 							value={content}
 							onChange={(e) => setContent(e.target.value)}
-							placeholder="실제 페르소나 프롬프트 내용을 입력하세요..."
-							className="col-span-3 min-h-[150px]"
+							placeholder="첫 번째 버전의 내용을 입력하세요... (기본적으로 프롬프트 내용과 동일)"
+							className="col-span-3"
 							disabled={isSubmitting}
 						/>
 					</div>
@@ -157,7 +154,7 @@ export function CreatePersonaPromptDialog({
 					<Button
 						type="submit"
 						onClick={handleSubmit}
-						disabled={isSubmitting || !name.trim() || !content.trim()}
+						disabled={isSubmitting || !name.trim() || !llmPrompt.trim()}
 					>
 						{isSubmitting ? "저장 중..." : "프롬프트 저장"}
 					</Button>

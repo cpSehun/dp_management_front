@@ -50,11 +50,12 @@ interface PromptVersion {
 interface PersonaPrompt {
 	id: number;
 	name: string;
-	description: string | null;
+	llm_prompt: string | null;
 	versions: PromptVersion[];
 	tags: string[] | null;
 	created_at: string;
 	updated_at: string;
+	created_by: number | null;
 }
 
 interface PaginatedPersonaPrompts {
@@ -168,7 +169,7 @@ export default function PersonaPromptsPage() {
 
 	const handleCreatePrompt = async (
 		name: string,
-		description: string,
+		llm_prompt: string,
 		tagsAsString: string,
 		content: string
 	) => {
@@ -183,8 +184,8 @@ export default function PersonaPromptsPage() {
 
 			const newPromptData = {
 				name: name,
-				description: description || null,
-				versions: [{ content: content, is_active: true }],
+				llm_prompt: llm_prompt || null,
+				versions: [{ content: content || llm_prompt, is_active: true }],
 				tags: tagsAsString
 					.split(",")
 					.map((tag: string) => tag.trim())
@@ -416,7 +417,7 @@ export default function PersonaPromptsPage() {
 										</TableCell>
 										<TableCell className="font-medium">{prompt.name}</TableCell>
 										<TableCell className="truncate max-w-[300px]">
-											{prompt.description || "-"}
+											{prompt.llm_prompt || "-"}
 										</TableCell>
 										<TableCell>
 											{prompt.tags && prompt.tags.length > 0
@@ -428,7 +429,9 @@ export default function PersonaPromptsPage() {
 												: "N/A"}
 										</TableCell>
 										<TableCell>{currentVersionDisplay}</TableCell>
-										<TableCell>N/A</TableCell>
+										<TableCell>
+											{prompt.created_by ? `ID:${prompt.created_by}` : "N/A"}
+										</TableCell>
 										<TableCell>{formatDate(prompt.updated_at)}</TableCell>
 										<TableCell className="text-right">
 											<DropdownMenu>

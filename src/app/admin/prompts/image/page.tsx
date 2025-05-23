@@ -52,16 +52,18 @@ interface PromptVersion {
 interface ImagePrompt {
 	id: number;
 	name: string;
-	description: string | null;
-	tags: string[] | null; // 변경: 문자열 배열 또는 null
+	image_prompt: string;
+	tags: string[] | null;
 	created_at: string;
 	updated_at: string;
+	created_by: number | null;
 	versions: {
 		id: number;
 		version: number;
 		content: string;
 		created_at: string;
 		is_active: boolean;
+		created_by: number | null;
 	}[];
 }
 
@@ -166,7 +168,7 @@ export default function ImagePromptsPage() {
 
 	const handleCreatePrompt = async (
 		name: string,
-		description: string,
+		image_prompt: string,
 		tagsAsString: string,
 		content: string
 	) => {
@@ -177,8 +179,8 @@ export default function ImagePromptsPage() {
 
 			const newPromptData = {
 				name: name,
-				description: description || null,
-				versions: [{ content: content, is_active: true }],
+				image_prompt: image_prompt,
+				versions: [{ content: content || image_prompt, is_active: true }],
 				tags: tagsAsString
 					.split(",")
 					.map((tag: string) => tag.trim())
@@ -416,7 +418,7 @@ export default function ImagePromptsPage() {
 										</TableCell>
 										<TableCell className="font-medium">{prompt.name}</TableCell>
 										<TableCell className="truncate max-w-[300px]">
-											{prompt.description || "N/A"}
+											{prompt.image_prompt || "N/A"}
 										</TableCell>
 										<TableCell>
 											{prompt.tags && prompt.tags.length > 0
@@ -428,7 +430,9 @@ export default function ImagePromptsPage() {
 												: "N/A"}
 										</TableCell>
 										<TableCell>{currentVersionDisplay}</TableCell>
-										<TableCell>N/A</TableCell>
+										<TableCell>
+											{prompt.created_by ? `ID:${prompt.created_by}` : "N/A"}
+										</TableCell>
 										<TableCell>{formatDate(prompt.updated_at)}</TableCell>
 										<TableCell className="text-right">
 											<DropdownMenu>

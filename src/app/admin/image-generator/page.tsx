@@ -42,19 +42,26 @@ interface Model {
 interface PromptVersion {
 	id: number;
 	content: string;
-	createdAt: string;
-	isActive: boolean;
+	created_at: string;
+	is_active: boolean;
+	version: number;
 }
 
 interface Prompt {
 	id: number;
 	name: string;
-	description: string;
+	image_prompt: string;
 	versions: PromptVersion[];
-	currentVersion: number;
 	tags: string[];
-	createdAt: string;
-	updatedAt: string;
+	created_at: string;
+	updated_at: string;
+	created_by: number | null;
+}
+
+// PaginatedPromptsResponse 인터페이스 추가
+interface PaginatedPromptsResponse {
+	total_items: number;
+	items: Prompt[];
 }
 
 // 생성된 이미지 타입 정의
@@ -87,7 +94,9 @@ export default function ImageGeneratorPage() {
 	const [useSpecificSteps, setUseSpecificSteps] = useState(false);
 	const [batchSize, setBatchSize] = useState(1);
 	const [models, setModels] = useState<Model[]>([]);
-	const [selectedModel, setSelectedModel] = useState<string>("flux-dev");
+	const [selectedModel, setSelectedModel] = useState<
+		"flux-dev" | "gpt-image-1" | string
+	>("flux-dev");
 	const [isLoadingModels, setIsLoadingModels] = useState(false);
 	const [isLoadingImagePrompts, setIsLoadingImagePrompts] = useState(false); // 프롬프트 로딩 상태 추가
 
@@ -116,11 +125,12 @@ export default function ImageGeneratorPage() {
 
 	// 모델에 따라 일부 옵션이 지원되는지 확인하는 함수
 	const isOptionSupported = (option: string): boolean => {
-		if (selectedModel === "gpt-image-1") {
-			// gpt-image-1 모델은 시드와 스텝 옵션을 지원하지 않음
-			if (option === "seed" || option === "steps") {
-				return false;
-			}
+		// 특정 모델에서 특정 옵션이 지원되지 않는 경우 처리
+		if (
+			selectedModel === "gpt-image-1" &&
+			(option === "seed" || option === "steps")
+		) {
+			return false;
 		}
 		return true;
 	};
@@ -162,14 +172,12 @@ export default function ImageGeneratorPage() {
 			try {
 				const token = localStorage.getItem("access_token");
 				if (!token) {
-					// 로그인 페이지로 리디렉션 또는 오류 처리
 					console.error("Access token not found. Cannot fetch image prompts.");
-					// setError("이미지 프롬프트를 가져오려면 로그인이 필요합니다."); // 사용자에게 오류 표시
 					return;
 				}
 
-				// TODO: 실제 이미지 프롬프트 API 엔드포인트로 변경 (예: /api/v1/prompts/image?active=true 또는 유사 형태)
-				const response = await fetch("/api/v1/prompts/image", {
+				// 모든 프롬프트를 가져오기 위해 limit=1000 추가
+				const response = await fetch("/api/v1/prompts/image?limit=1000", {
 					headers: {
 						Authorization: `Bearer ${token}`,
 					},
@@ -178,48 +186,50 @@ export default function ImageGeneratorPage() {
 				if (!response.ok) {
 					const errorData = await response.json().catch(() => ({}));
 					console.error("Failed to fetch image prompts:", errorData);
-					// setError(`이미지 프롬프트 목록 로딩 실패: ${errorData.detail || response.statusText}`);
 					throw new Error(errorData.detail || "Failed to fetch image prompts");
 				}
+
 				const responseData: PaginatedPromptsResponse = await response.json();
 				console.log(
 					"Raw API responseData:",
 					JSON.stringify(responseData, null, 2)
 				);
-				if (!responseData || !Array.isArray(responseData.items)) {
+
+				if (
+					!responseData ||
+					!responseData.items ||
+					!Array.isArray(responseData.items)
+				) {
 					console.error(
 						"API responseData.items is not an array or responseData is invalid:",
 						responseData
 					);
-					// 여기서 에러 처리를 하거나, 빈 배열로 강제할 수 있습니다.
 					setImagePrompts([]);
 					setFilteredImagePrompts([]);
-					setIsLoadingImagePrompts(false); // 로딩 상태 종료
-					setError("API 응답 형식이 잘못되었습니다."); // 사용자에게 알림
-					return; // 함수 종료
+					return;
 				}
 
 				const fetchedPrompts: Prompt[] = responseData.items.map((item) => {
-					console.log("Mapping item:", JSON.stringify(item, null, 2));
-					if (!item.versions || !Array.isArray(item.versions)) {
-						console.error("Item versions is not an array or undefined:", item);
-						// 각 item의 versions가 배열이 아니면 기본값 또는 에러 처리
-						return { ...item, versions: [] }; // versions를 빈 배열로 설정
-					}
 					return {
-						...item,
-						versions: item.versions.map((v) => {
-							console.log("Mapping version:", JSON.stringify(v, null, 2));
-							return {
-								id: v.id,
-								version: (v as any).version, // 이 부분이 실제 데이터와 맞는지 확인!
-								content: v.content,
-								is_active: v.is_active, // 이 부분이 실제 데이터와 맞는지 확인!
-								created_at: (v as any).created_at, // 이 부분이 실제 데이터와 맞는지 확인!
-							};
-						}),
+						id: item.id,
+						name: item.name,
+						image_prompt: item.image_prompt,
+						versions: Array.isArray(item.versions)
+							? item.versions.map((v) => ({
+									id: v.id,
+									version: v.version,
+									content: v.content,
+									is_active: v.is_active,
+									created_at: v.created_at,
+							  }))
+							: [],
+						tags: Array.isArray(item.tags) ? item.tags : [],
+						created_at: item.created_at,
+						updated_at: item.updated_at,
+						created_by: item.created_by,
 					};
 				});
+
 				console.log(
 					"Processed fetchedPrompts:",
 					JSON.stringify(fetchedPrompts, null, 2)
@@ -228,7 +238,9 @@ export default function ImageGeneratorPage() {
 				setFilteredImagePrompts(fetchedPrompts);
 			} catch (error) {
 				console.error("Error fetching image prompts:", error);
-				// setError("이미지 프롬프트 목록을 가져오는 중 오류가 발생했습니다.");
+				// 에러 발생 시 빈 배열로 설정
+				setImagePrompts([]);
+				setFilteredImagePrompts([]);
 			} finally {
 				setIsLoadingImagePrompts(false);
 			}
@@ -246,15 +258,21 @@ export default function ImageGeneratorPage() {
 			const lowercasedSearch = imagePromptSearch.toLowerCase();
 			const filtered = imagePrompts.filter((prompt) => {
 				const nameMatch = prompt.name.toLowerCase().includes(lowercasedSearch);
-				const descMatch = prompt.description
+				const descMatch = prompt.image_prompt
 					.toLowerCase()
 					.includes(lowercasedSearch);
-				const tagMatch = prompt.tags.some((tag) =>
-					tag.toLowerCase().includes(lowercasedSearch)
-				);
-				const contentMatch = prompt.versions.some((version) =>
-					version.content.toLowerCase().includes(lowercasedSearch)
-				);
+				const tagMatch =
+					prompt.tags && Array.isArray(prompt.tags)
+						? prompt.tags.some((tag) =>
+								tag.toLowerCase().includes(lowercasedSearch)
+						  )
+						: false;
+				const contentMatch =
+					prompt.versions && Array.isArray(prompt.versions)
+						? prompt.versions.some((version) =>
+								version.content.toLowerCase().includes(lowercasedSearch)
+						  )
+						: false;
 
 				return nameMatch || descMatch || tagMatch || contentMatch;
 			});
@@ -274,7 +292,7 @@ export default function ImageGeneratorPage() {
 
 		setSelectedImagePrompt(prompt);
 		// 선택한 프롬프트의 활성 버전 찾기
-		const activeVersion = prompt.versions.find((v) => v.isActive);
+		const activeVersion = prompt.versions.find((v) => v.is_active);
 		if (activeVersion) {
 			setPrompt(activeVersion.content);
 		}
@@ -750,7 +768,7 @@ export default function ImageGeneratorPage() {
 																			<div className="flex flex-col">
 																				<span>{promptItem.name}</span>
 																				<span className="text-xs text-muted-foreground">
-																					{promptItem.description}
+																					{promptItem.image_prompt}
 																				</span>
 																			</div>
 																		</CommandItem>
@@ -770,7 +788,7 @@ export default function ImageGeneratorPage() {
 													<div className="text-xs text-muted-foreground mb-2">
 														{
 															selectedImagePrompt.versions.find(
-																(v) => v.isActive
+																(v) => v.is_active
 															)?.content
 														}
 													</div>

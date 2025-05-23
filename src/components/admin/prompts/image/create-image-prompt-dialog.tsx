@@ -22,7 +22,7 @@ interface CreateImagePromptDialogProps {
 	onClose: () => void;
 	onCreate: (
 		name: string,
-		description: string,
+		image_prompt: string,
 		tags: string,
 		content: string
 	) => Promise<void>;
@@ -36,14 +36,14 @@ export function CreateImagePromptDialog({
 	isSubmitting,
 }: CreateImagePromptDialogProps) {
 	const [name, setName] = useState("");
-	const [description, setDescription] = useState("");
+	const [imagePrompt, setImagePrompt] = useState("");
 	const [content, setContent] = useState("");
 	const [tags, setTags] = useState("");
 
 	useEffect(() => {
 		if (isOpen) {
 			setName("");
-			setDescription("");
+			setImagePrompt("");
 			setContent("");
 			setTags("");
 		}
@@ -54,11 +54,11 @@ export function CreateImagePromptDialog({
 			toast.error("프롬프트 이름은 필수입니다.");
 			return;
 		}
-		if (!content.trim()) {
+		if (!imagePrompt.trim()) {
 			toast.error("프롬프트 내용은 필수입니다.");
 			return;
 		}
-		await onCreate(name, description, tags, content);
+		await onCreate(name, imagePrompt, tags, content);
 	};
 
 	return (
@@ -72,7 +72,7 @@ export function CreateImagePromptDialog({
 				<DialogHeader>
 					<DialogTitle>새 이미지 프롬프트 생성</DialogTitle>
 					<DialogDescription>
-						이미지 생성에 사용될 프롬프트의 이름, 설명, 첫 버전 내용, 태그를
+						이미지 생성에 사용될 프롬프트의 이름, 내용, 첫 버전 내용, 태그를
 						입력하세요.
 					</DialogDescription>
 				</DialogHeader>
@@ -90,32 +90,32 @@ export function CreateImagePromptDialog({
 							disabled={isSubmitting}
 						/>
 					</div>
-					<div className="grid grid-cols-4 items-center gap-4">
+					<div className="grid grid-cols-4 items-start gap-4">
 						<Label
-							htmlFor="prompt-description"
-							className="text-right col-span-1"
+							htmlFor="image-prompt"
+							className="text-right col-span-1 pt-2"
 						>
-							설명
+							이미지 프롬프트*
 						</Label>
-						<Input
-							id="prompt-description"
-							value={description}
-							onChange={(e) => setDescription(e.target.value)}
-							className="col-span-3"
-							placeholder="이 프롬프트에 대한 간략한 설명"
+						<Textarea
+							id="image-prompt"
+							value={imagePrompt}
+							onChange={(e) => setImagePrompt(e.target.value)}
+							className="col-span-3 min-h-[150px]"
+							placeholder="이미지 생성에 사용될 프롬프트 내용을 입력하세요..."
 							disabled={isSubmitting}
 						/>
 					</div>
 					<div className="grid grid-cols-4 items-start gap-4">
 						<Label htmlFor="content" className="text-right col-span-1 pt-2">
-							프롬프트*
+							버전 내용
 						</Label>
 						<Textarea
 							id="content"
 							value={content}
 							onChange={(e) => setContent(e.target.value)}
-							placeholder="실제 이미지 프롬프트 내용을 입력하세요..."
-							className="col-span-3 min-h-[150px]"
+							placeholder="첫 번째 버전의 내용을 입력하세요... (기본적으로 프롬프트 내용과 동일)"
+							className="col-span-3"
 							disabled={isSubmitting}
 						/>
 					</div>
@@ -147,7 +147,7 @@ export function CreateImagePromptDialog({
 					<Button
 						type="submit"
 						onClick={handleSubmit}
-						disabled={isSubmitting || !name.trim() || !content.trim()}
+						disabled={isSubmitting || !name.trim() || !imagePrompt.trim()}
 					>
 						{isSubmitting ? "저장 중..." : "프롬프트 저장"}
 					</Button>
