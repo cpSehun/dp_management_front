@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-// import { Checkbox } from "@/components/ui/checkbox"; // is_enabled 제거로 불필요
 import { toast } from "sonner";
 
 interface CreatePersonaPromptDialogProps {
@@ -22,10 +21,7 @@ interface CreatePersonaPromptDialogProps {
 	onClose: () => void;
 	onCreate: (
 		name: string,
-		llm_prompt: string,
-		tags: string,
-		content: string
-		// is_enabled: boolean // is_enabled 제거
+		llm_prompt: string // llm_prompt에서 llm_prompt로 변경, tags와 content 제거
 	) => Promise<void>;
 	isSubmitting: boolean;
 }
@@ -37,18 +33,12 @@ export function CreatePersonaPromptDialog({
 	isSubmitting,
 }: CreatePersonaPromptDialogProps) {
 	const [name, setName] = useState("");
-	const [llmPrompt, setLlmPrompt] = useState("");
-	const [content, setContent] = useState("");
-	const [tags, setTags] = useState("");
-	// const [isEnabled, setIsEnabled] = useState(true); // is_enabled 제거
+	const [llmPrompt, setLlmPrompt] = useState(""); // llmPrompt로 통일
 
 	useEffect(() => {
 		if (isOpen) {
 			setName("");
-			setLlmPrompt("");
-			setContent("");
-			setTags("");
-			// setIsEnabled(true); // is_enabled 제거
+			setLlmPrompt(""); // 초기화
 		}
 	}, [isOpen]);
 
@@ -58,10 +48,11 @@ export function CreatePersonaPromptDialog({
 			return;
 		}
 		if (!llmPrompt.trim()) {
+			// llmPrompt로 변경
 			toast.error("페르소나 프롬프트 내용은 필수입니다.");
 			return;
 		}
-		await onCreate(name, llmPrompt, tags, content); // isEnabled 제거
+		await onCreate(name, llmPrompt); // tags와 content 파라미터 제거
 	};
 
 	return (
@@ -75,8 +66,7 @@ export function CreatePersonaPromptDialog({
 				<DialogHeader>
 					<DialogTitle>새 페르소나 프롬프트 생성</DialogTitle>
 					<DialogDescription>
-						페르소나 정의에 사용될 프롬프트의 이름, 내용, 첫 버전 내용, 태그를
-						입력하세요.
+						페르소나 정의에 사용될 프롬프트의 이름과 내용을 입력하세요.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="grid gap-4 py-4">
@@ -98,47 +88,19 @@ export function CreatePersonaPromptDialog({
 					</div>
 					<div className="grid grid-cols-4 items-start gap-4">
 						<Label htmlFor="llm-prompt" className="text-right col-span-1 pt-2">
-							LLM 프롬프트*
+							LLM 프롬프트* {/* 라벨 변경 */}
 						</Label>
 						<Textarea
 							id="llm-prompt"
-							value={llmPrompt}
-							onChange={(e) => setLlmPrompt(e.target.value)}
+							value={llmPrompt} // state 변경
+							onChange={(e) => setLlmPrompt(e.target.value)} // handler 변경
 							className="col-span-3 min-h-[150px]"
 							placeholder="페르소나 정의에 사용될 프롬프트 내용을 입력하세요..."
 							disabled={isSubmitting}
 						/>
 					</div>
-					<div className="grid grid-cols-4 items-start gap-4">
-						<Label htmlFor="content" className="text-right col-span-1 pt-2">
-							버전 내용
-						</Label>
-						<Textarea
-							id="content"
-							value={content}
-							onChange={(e) => setContent(e.target.value)}
-							placeholder="첫 번째 버전의 내용을 입력하세요... (기본적으로 프롬프트 내용과 동일)"
-							className="col-span-3"
-							disabled={isSubmitting}
-						/>
-					</div>
-					<div className="grid grid-cols-4 items-center gap-4">
-						<Label
-							htmlFor="persona-prompt-tags"
-							className="text-right col-span-1"
-						>
-							태그 (쉼표 구분)
-						</Label>
-						<Input
-							id="persona-prompt-tags"
-							value={tags}
-							onChange={(e) => setTags(e.target.value)}
-							className="col-span-3"
-							placeholder="예: 고객지원, 챗봇, 정보제공"
-							disabled={isSubmitting}
-						/>
-					</div>
-					{/* is_enabled 관련 UI 제거됨 */}
+					{/* 버전 내용 입력 필드 제거 */}
+					{/* 태그 입력 필드 제거 */}
 				</div>
 				<DialogFooter>
 					<DialogClose asChild>
@@ -154,7 +116,7 @@ export function CreatePersonaPromptDialog({
 					<Button
 						type="submit"
 						onClick={handleSubmit}
-						disabled={isSubmitting || !name.trim() || !llmPrompt.trim()}
+						disabled={isSubmitting || !name.trim() || !llmPrompt.trim()} // 조건 변경
 					>
 						{isSubmitting ? "저장 중..." : "프롬프트 저장"}
 					</Button>

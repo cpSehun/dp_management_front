@@ -23,48 +23,36 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, CheckCircle, GitCommit, Trash2 } from "lucide-react";
+import { MoreHorizontal, Loader2 } from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuLabel,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { PaginationControls } from "@/components/pagination-controls";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { PromptPageHeader } from "@/components/admin/prompt-page-header";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2 } from "lucide-react";
 import { CreateImagePromptDialog } from "@/components/admin/prompts/image/create-image-prompt-dialog";
 
-// 프롬프트 버전 타입 정의
-interface PromptVersion {
-	id?: string | number; // DB에서 생성될 수도 있으므로 optional
-	version_number?: number;
-	content: string;
-	is_active: boolean;
-	created_at?: string;
+// 타입 정의
+interface ImagePromptVersion {
+	id: number;
+	version: number;
+	llm_prompt: string;
+	created_at: string;
+	created_by: number | null;
 }
 
-// 이미지 프롬프트 타입 정의 (DB 스키마와 유사하게)
 interface ImagePrompt {
 	id: number;
 	name: string;
-	image_prompt: string;
-	tags: string[] | null;
+	llm_prompt: string;
+	version: number;
 	created_at: string;
 	updated_at: string;
 	created_by: number | null;
-	versions: {
-		id: number;
-		version: number;
-		content: string;
-		created_at: string;
-		is_active: boolean;
-		created_by: number | null;
-	}[];
+	versions: ImagePromptVersion[];
 }
 
 interface PaginatedImagePrompts {
@@ -72,7 +60,7 @@ interface PaginatedImagePrompts {
 	items: ImagePrompt[];
 }
 
-const ITEMS_PER_PAGE = 10; // 페이지당 항목 수 (필요시 페이지네이션 구현)
+const ITEMS_PER_PAGE = 10;
 
 export default function ImagePromptsPage() {
 	const [prompts, setPrompts] = useState<ImagePrompt[]>([]);
@@ -80,26 +68,34 @@ export default function ImagePromptsPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [totalPrompts, setTotalPrompts] = useState(0);
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-	const [versionHistoryDialogOpen, setVersionHistoryDialogOpen] =
-		useState(false);
-	const [selectedPromptForHistory, setSelectedPromptForHistory] =
-		useState<ImagePrompt | null>(null);
-	const [selectedPrompts, setSelectedPrompts] = useState<number[]>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	// 페이지네이션 상태
 	const [currentPage, setCurrentPage] = useState(1);
-	const itemsPerPage = ITEMS_PER_PAGE; // This is the correct constant to use
+	const itemsPerPage = ITEMS_PER_PAGE;
 
 	// 검색어 상태
 	const [searchTerm, setSearchTerm] = useState("");
 	const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
 
+	// 수정 모달 관련 상태
+	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+	const [selectedPromptForEdit, setSelectedPromptForEdit] =
+		useState<ImagePrompt | null>(null);
+	const [editFormData, setEditFormData] = useState({
+		name: "",
+		llm_prompt: "",
+	});
+	const [promptVersions, setPromptVersions] = useState<ImagePromptVersion[]>(
+		[]
+	);
+	const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+
 	// Debounce search term
 	useEffect(() => {
 		const handler = setTimeout(() => {
 			setDebouncedSearchTerm(searchTerm);
-		}, 500); // 500ms delay
+		}, 500);
 		return () => {
 			clearTimeout(handler);
 		};
@@ -118,7 +114,7 @@ export default function ImagePromptsPage() {
 				const termToUse =
 					typeof currentSearchTerm === "string"
 						? currentSearchTerm
-						: searchTerm;
+						: debouncedSearchTerm;
 				if (termToUse) {
 					url += `&searchTerm=${encodeURIComponent(termToUse)}`;
 				}
@@ -151,7 +147,7 @@ export default function ImagePromptsPage() {
 				setIsLoading(false);
 			}
 		},
-		[searchTerm, itemsPerPage]
+		[debouncedSearchTerm, itemsPerPage]
 	);
 
 	useEffect(() => {
@@ -166,26 +162,25 @@ export default function ImagePromptsPage() {
 		setSearchTerm(term);
 	};
 
-	const handleCreatePrompt = async (
-		name: string,
-		image_prompt: string,
-		tagsAsString: string,
-		content: string
-	) => {
+	const handleCreatePrompt = async (name: string, llm_prompt: string) => {
 		setIsSubmitting(true);
+		setError(null);
+
 		try {
 			const token = localStorage.getItem("access_token");
-			if (!token) throw new Error("Access token not found.");
+			if (!token) {
+				throw new Error("Access token not found. Please login again.");
+			}
 
 			const newPromptData = {
 				name: name,
-				image_prompt: image_prompt,
-				versions: [{ content: content || image_prompt, is_active: true }],
-				tags: tagsAsString
-					.split(",")
-					.map((tag: string) => tag.trim())
-					.filter((tag: string) => tag.length > 0),
+				llm_prompt: llm_prompt,
 			};
+
+			console.log(
+				"Data being sent to /api/v1/prompts/image:",
+				JSON.stringify(newPromptData, null, 2)
+			);
 
 			const response = await fetch("/api/v1/prompts/image/", {
 				method: "POST",
@@ -197,26 +192,165 @@ export default function ImagePromptsPage() {
 			});
 
 			if (!response.ok) {
-				const errData = await response.json().catch(() => ({}));
-				throw new Error(errData.detail || "Failed to create prompt.");
+				const errorData = await response.json().catch(() => ({
+					detail: "Unknown error occurred during image prompt creation",
+				}));
+				const errorMessage = Array.isArray(errorData.detail)
+					? errorData.detail
+							.map((err: any) => `${err.loc.join(".")} - ${err.msg}`)
+							.join(", ")
+					: errorData.detail || "Failed to create image prompt";
+				throw new Error(errorMessage);
 			}
+
 			const createdPrompt: ImagePrompt = await response.json();
-			toast.success(`'${createdPrompt.name}' 프롬프트가 생성되었습니다.`);
+			toast.success(
+				`이미지 프롬프트 "${createdPrompt.name}"이(가) 성공적으로 생성되었습니다.`
+			);
 			setIsCreateDialogOpen(false);
 			fetchImagePrompts(1, "");
 			setCurrentPage(1);
 			setSearchTerm("");
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error creating image prompt:", err);
 			toast.error(
-				err instanceof Error ? err.message : "프롬프트 생성 중 오류 발생"
+				err.message || "이미지 프롬프트 생성 중 오류가 발생했습니다."
 			);
+			setError(err.message || "이미지 프롬프트 생성 중 오류가 발생했습니다.");
 		} finally {
 			setIsSubmitting(false);
 		}
 	};
 
-	// 날짜 포맷팅 함수 (필요시 utils로 분리)
+	// 수정 다이얼로그 열기
+	const handleOpenEditDialog = async (prompt: ImagePrompt) => {
+		setSelectedPromptForEdit(prompt);
+		setEditFormData({
+			name: prompt.name,
+			llm_prompt: prompt.llm_prompt,
+		});
+
+		// 버전 히스토리 조회
+		await fetchPromptVersions(prompt.id);
+		setIsEditDialogOpen(true);
+	};
+
+	// 프롬프트 버전 히스토리 조회
+	const fetchPromptVersions = async (promptId: number) => {
+		setIsLoadingVersions(true);
+		try {
+			const token = localStorage.getItem("access_token");
+			if (!token) throw new Error("Access token not found.");
+
+			const response = await fetch(
+				`/api/v1/prompts/image/${promptId}/versions`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+
+			if (!response.ok) {
+				throw new Error("Failed to fetch prompt versions");
+			}
+
+			const versions: ImagePromptVersion[] = await response.json();
+			setPromptVersions(versions);
+		} catch (err) {
+			console.error("Error fetching prompt versions:", err);
+			toast.error("버전 히스토리 로딩 중 오류가 발생했습니다.");
+			setPromptVersions([]);
+		} finally {
+			setIsLoadingVersions(false);
+		}
+	};
+
+	// 버전 히스토리에서 버전 클릭 시 해당 내용 로드
+	const handleVersionClick = (version: ImagePromptVersion) => {
+		setEditFormData({
+			...editFormData,
+			llm_prompt: version.llm_prompt,
+		});
+	};
+
+	// 프롬프트 수정 저장
+	const handleSaveEdit = async () => {
+		if (!selectedPromptForEdit) return;
+
+		setIsSubmitting(true);
+		try {
+			const token = localStorage.getItem("access_token");
+			if (!token) throw new Error("Access token not found.");
+
+			const response = await fetch(
+				`/api/v1/prompts/image/${selectedPromptForEdit.id}`,
+				{
+					method: "PUT",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify(editFormData),
+				}
+			);
+
+			if (!response.ok) {
+				throw new Error("Failed to update prompt");
+			}
+
+			toast.success("프롬프트가 성공적으로 수정되었습니다.");
+			setIsEditDialogOpen(false);
+			fetchImagePrompts(currentPage, searchTerm);
+		} catch (err) {
+			console.error("Error updating prompt:", err);
+			toast.error("프롬프트 수정 중 오류가 발생했습니다.");
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	// 롤백 실행
+	const handleRollback = async (version: number) => {
+		if (!selectedPromptForEdit) return;
+
+		if (!window.confirm(`v${version}으로 롤백하시겠습니까?`)) return;
+
+		setIsSubmitting(true);
+		try {
+			const token = localStorage.getItem("access_token");
+			if (!token) throw new Error("Access token not found.");
+
+			const response = await fetch(
+				`/api/v1/prompts/image/${selectedPromptForEdit.id}/rollback/${version}`,
+				{
+					method: "PUT",
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+
+			if (!response.ok) {
+				throw new Error("Failed to rollback prompt");
+			}
+
+			toast.success(`v${version}으로 롤백되었습니다.`);
+			setIsEditDialogOpen(false);
+			fetchImagePrompts(currentPage, searchTerm);
+		} catch (err) {
+			console.error("Error rolling back prompt:", err);
+			toast.error("롤백 중 오류가 발생했습니다.");
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	// 다이얼로그 닫기
+	const handleCloseEditDialog = () => {
+		setIsEditDialogOpen(false);
+		setSelectedPromptForEdit(null);
+		setEditFormData({ name: "", llm_prompt: "" });
+		setPromptVersions([]);
+	};
+
+	// 날짜 포맷팅 함수
 	const formatDate = (dateString?: string) => {
 		if (!dateString) return "-";
 		const date = new Date(dateString);
@@ -229,80 +363,6 @@ export default function ImagePromptsPage() {
 			" " +
 			date.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
 		);
-	};
-
-	const handleOpenVersionHistoryDialog = (prompt: ImagePrompt) => {
-		setSelectedPromptForHistory(prompt);
-		setVersionHistoryDialogOpen(true);
-	};
-
-	const handleSetActiveVersion = async (
-		promptId: number,
-		versionId: number
-	) => {
-		if (!selectedPromptForHistory) return;
-
-		try {
-			const token = localStorage.getItem("access_token");
-			if (!token) throw new Error("Access token not found.");
-
-			const response = await fetch(
-				`/api/v1/prompts/image/${promptId}/versions/${versionId}/activate`,
-				{
-					method: "PUT",
-					headers: { Authorization: `Bearer ${token}` },
-				}
-			);
-
-			if (!response.ok) {
-				const errData = await response.json().catch(() => ({}));
-				throw new Error(errData.detail || "Failed to set active version.");
-			}
-			const updatedPrompt: ImagePrompt = await response.json();
-
-			setPrompts((prevPrompts) =>
-				prevPrompts.map((p) => (p.id === updatedPrompt.id ? updatedPrompt : p))
-			);
-			if (
-				selectedPromptForHistory &&
-				selectedPromptForHistory.id === updatedPrompt.id
-			) {
-				setSelectedPromptForHistory(updatedPrompt);
-			}
-
-			toast.success(`버전 ${versionId}이(가) 활성 버전으로 설정되었습니다.`);
-		} catch (err) {
-			console.error("Error setting active version:", err);
-			toast.error(
-				err instanceof Error ? err.message : "활성 버전 설정 중 오류 발생"
-			);
-		}
-	};
-
-	const handleDeletePrompt = async (promptId: number) => {
-		if (
-			!window.confirm(
-				"정말로 이 프롬프트를 삭제하시겠습니까? 모든 버전이 함께 삭제됩니다."
-			)
-		) {
-			return;
-		}
-		try {
-			const response = await fetch(`/api/admin/prompts/image/${promptId}`, {
-				method: "DELETE",
-			});
-			if (!response.ok) {
-				const errorData = await response.json();
-				throw new Error(errorData.detail || "Failed to delete prompt");
-			}
-			toast.success("프롬프트가 삭제되었습니다.");
-			// Refresh the list
-			fetchImagePrompts(currentPage, debouncedSearchTerm);
-			setSelectedPrompts(selectedPrompts.filter((id) => id !== promptId));
-		} catch (error: any) {
-			console.error("Error deleting prompt:", error);
-			toast.error(error.message || "프롬프트 삭제 중 오류가 발생했습니다.");
-		}
 	};
 
 	// Calculate startIndex and endIndex for pagination
@@ -342,36 +402,21 @@ export default function ImagePromptsPage() {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead className="w-[40px]">
-								<Checkbox
-									checked={
-										prompts.length > 0 &&
-										selectedPrompts.length === prompts.length
-									}
-									onCheckedChange={(checked) => {
-										if (checked) {
-											setSelectedPrompts(prompts.map((p) => p.id));
-										} else {
-											setSelectedPrompts([]);
-										}
-									}}
-								/>
-							</TableHead>
 							<TableHead className="min-w-[150px]">이름</TableHead>
 							<TableHead className="min-w-[200px] max-w-[300px] truncate">
-								설명
+								LLM 프롬프트
 							</TableHead>
-							<TableHead className="min-w-[150px]">태그</TableHead>
 							<TableHead className="min-w-[100px]">현재 버전</TableHead>
 							<TableHead className="min-w-[120px]">생성자</TableHead>
 							<TableHead className="min-w-[150px]">최종 수정일</TableHead>
 							<TableHead className="text-right w-[100px]">액션</TableHead>
-						</TableRow>
+						</TableRow>a
 					</TableHeader>
+
 					<TableBody>
 						{isLoading ? (
 							<TableRow>
-								<TableCell colSpan={9} className="h-24 text-center">
+								<TableCell colSpan={6} className="h-24 text-center">  {/* 7에서 6으로 변경 */}
 									<div className="flex justify-center items-center">
 										<Loader2 className="mr-2 h-8 w-8 animate-spin" />
 										<span>데이터를 불러오는 중입니다...</span>
@@ -381,7 +426,7 @@ export default function ImagePromptsPage() {
 						) : error ? (
 							<TableRow>
 								<TableCell
-									colSpan={9}
+									colSpan={6}  {/* 7에서 6으로 변경 */}
 									className="h-24 text-center text-red-500"
 								>
 									{error}
@@ -389,49 +434,21 @@ export default function ImagePromptsPage() {
 							</TableRow>
 						) : prompts.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={9} className="h-24 text-center">
+								<TableCell colSpan={6} className="h-24 text-center">  {/* 7에서 6으로 변경 */}
 									표시할 프롬프트가 없습니다.
 								</TableCell>
 							</TableRow>
 						) : (
 							prompts.slice(startIndex, endIndex).map((prompt) => {
-								const activeVersion = prompt.versions.find((v) => v.is_active);
-								const currentVersionDisplay = activeVersion
-									? `V.${activeVersion.version}`
-									: "N/A";
-
 								return (
-									<TableRow key={prompt.id}>
-										<TableCell>
-											<Checkbox
-												checked={selectedPrompts.includes(prompt.id)}
-												onCheckedChange={(checked) => {
-													if (checked) {
-														setSelectedPrompts([...selectedPrompts, prompt.id]);
-													} else {
-														setSelectedPrompts(
-															selectedPrompts.filter((id) => id !== prompt.id)
-														);
-													}
-												}}
-											/>
-										</TableCell>
+									<TableRow key={`prompt-${prompt.id}`}>
 										<TableCell className="font-medium">{prompt.name}</TableCell>
 										<TableCell className="truncate max-w-[300px]">
-											{prompt.image_prompt || "N/A"}
+											{prompt.llm_prompt || "N/A"}
 										</TableCell>
+										<TableCell>v{prompt.version}</TableCell>
 										<TableCell>
-											{prompt.tags && prompt.tags.length > 0
-												? prompt.tags.map((tag: string) => (
-														<Badge key={tag} variant="outline" className="mr-1">
-															{tag}
-														</Badge>
-												  ))
-												: "N/A"}
-										</TableCell>
-										<TableCell>{currentVersionDisplay}</TableCell>
-										<TableCell>
-											{prompt.created_by ? `ID:${prompt.created_by}` : "N/A"}
+											{prompt.created_by ? `사용자 ${prompt.created_by}` : "N/A"}
 										</TableCell>
 										<TableCell>{formatDate(prompt.updated_at)}</TableCell>
 										<TableCell className="text-right">
@@ -443,17 +460,9 @@ export default function ImagePromptsPage() {
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end">
 													<DropdownMenuItem
-														onSelect={() =>
-															handleOpenVersionHistoryDialog(prompt)
-														}
+														onSelect={() => handleOpenEditDialog(prompt)}
 													>
 														수정
-													</DropdownMenuItem>
-													<DropdownMenuItem
-														onSelect={() => handleDeletePrompt(prompt.id)}
-														className="text-red-600"
-													>
-														삭제
 													</DropdownMenuItem>
 												</DropdownMenuContent>
 											</DropdownMenu>
@@ -466,7 +475,7 @@ export default function ImagePromptsPage() {
 				</Table>
 			</div>
 
-			{totalPrompts > 1 && (
+			{totalPrompts > itemsPerPage && (
 				<PaginationControls
 					currentPage={currentPage}
 					totalPages={Math.ceil(totalPrompts / itemsPerPage)}
@@ -474,91 +483,119 @@ export default function ImagePromptsPage() {
 				/>
 			)}
 
-			{selectedPromptForHistory && (
-				<Dialog
-					open={versionHistoryDialogOpen}
-					onOpenChange={setVersionHistoryDialogOpen}
-				>
-					<DialogContent className="sm:max-w-[700px] md:max-w-[800px] lg:max-w-[900px]">
+			{/* 수정 모달 */}
+			{selectedPromptForEdit && (
+				<Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
+					<DialogContent className="sm:max-w-[800px]">
 						<DialogHeader>
-							<DialogTitle>
-								프롬프트 버전 관리: {selectedPromptForHistory?.name}
-							</DialogTitle>
+							<DialogTitle>프롬프트 수정</DialogTitle>
 							<DialogDescription>
-								프롬프트 '{selectedPromptForHistory.name}'의 모든 버전
-								목록입니다.
+								프롬프트 내용을 수정하거나 이전 버전으로 롤백할 수 있습니다.
 							</DialogDescription>
 						</DialogHeader>
-						<ScrollArea className="max-h-[60vh] p-1">
-							<Table className="mt-4">
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-[10%]">상태</TableHead>
-										<TableHead className="w-[15%]">버전 ID</TableHead>
-										<TableHead className="w-[50%]">내용 (일부)</TableHead>
-										<TableHead className="w-[20%]">생성일</TableHead>
-										<TableHead className="text-right w-[5%]">작업</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{selectedPromptForHistory.versions
-										.slice()
-										.sort(
-											(a, b) =>
-												new Date(b.created_at!).getTime() -
-												new Date(a.created_at!).getTime()
-										)
-										.map((version, index) => (
-											<TableRow key={version.id || `version-${index}`}>
-												<TableCell>
-													{version.is_active ? (
-														<Badge variant="default">
-															<CheckCircle className="mr-1 h-3 w-3 inline-block" />
-															현재 활성
-														</Badge>
-													) : (
-														<Badge variant="outline">이전 버전</Badge>
-													)}
-												</TableCell>
-												<TableCell className="text-xs">
-													{version.id || "N/A"}
-												</TableCell>
-												<TableCell
-													className="text-xs max-w-md truncate"
-													title={version.content}
-												>
-													{version.content}
-												</TableCell>
-												<TableCell className="text-xs">
-													{formatDate(version.created_at)}
-												</TableCell>
-												<TableCell className="text-right">
-													{!version.is_active && (
-														<Button
-															variant="outline"
-															size="sm"
-															onClick={() =>
-																handleSetActiveVersion(
-																	selectedPromptForHistory!.id,
-																	version.id!
-																)
-															}
-														>
-															활성으로 설정
-														</Button>
-													)}
-												</TableCell>
-											</TableRow>
-										))}
-								</TableBody>
-							</Table>
-						</ScrollArea>
-						<DialogFooter className="mt-4">
-							<DialogClose asChild>
-								<Button type="button" variant="outline">
-									닫기
-								</Button>
-							</DialogClose>
+
+						<div className="grid gap-4 py-4">
+							{/* 이름 입력 */}
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label htmlFor="edit-name" className="text-right">
+									이름
+								</Label>
+								<Input
+									id="edit-name"
+									value={editFormData.name}
+									onChange={(e) =>
+										setEditFormData({
+											...editFormData,
+											name: e.target.value,
+										})
+									}
+									className="col-span-3"
+								/>
+							</div>
+
+							{/* LLM 프롬프트 입력 */}
+							<div className="grid grid-cols-4 items-start gap-4">
+								<Label htmlFor="edit-prompt" className="text-right pt-2">
+									LLM 프롬프트
+								</Label>
+								<Textarea
+									id="edit-prompt"
+									value={editFormData.llm_prompt}
+									onChange={(e) =>
+										setEditFormData({
+											...editFormData,
+											llm_prompt: e.target.value,
+										})
+									}
+									className="col-span-3 min-h-[150px]"
+								/>
+							</div>
+
+							{/* 버전 히스토리 */}
+							<div className="grid grid-cols-4 items-start gap-4">
+								<Label className="text-right pt-2">버전 히스토리</Label>
+								<div className="col-span-3">
+									<div className="border rounded-md p-3 max-h-[200px] overflow-y-auto">
+										{isLoadingVersions ? (
+											<div className="text-center py-2">로딩 중...</div>
+										) : promptVersions.length === 0 ? (
+											<div className="text-center py-2 text-muted-foreground">
+												버전이 없습니다
+											</div>
+										) : (
+											<div className="space-y-2">
+												{promptVersions.map((version) => (
+													<div
+														key={version.id}
+														className={`flex items-center justify-between p-2 rounded cursor-pointer hover:bg-accent ${
+															version.version === selectedPromptForEdit?.version
+																? "bg-primary/10 border border-primary"
+																: "border"
+														}`}
+														onClick={() => handleVersionClick(version)}
+													>
+														<div className="flex items-center gap-2">
+															<span className="font-medium">
+																v{version.version}
+																{version.version ===
+																	selectedPromptForEdit?.version && " (현재)"}
+															</span>
+															<span className="text-sm text-muted-foreground">
+																{formatDate(version.created_at)}
+															</span>
+															<span className="text-sm text-muted-foreground">
+																by 사용자 {version.created_by || "N/A"}
+															</span>
+														</div>
+														{version.version !==
+															selectedPromptForEdit?.version && (
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={(e) => {
+																	e.stopPropagation();
+																	handleRollback(version.version);
+																}}
+															>
+																롤백
+															</Button>
+														)}
+													</div>
+												))}
+											</div>
+										)}
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<DialogFooter>
+							<Button variant="outline" onClick={handleCloseEditDialog}>
+								취소
+							</Button>
+							<Button onClick={handleSaveEdit} disabled={isSubmitting}>
+								{isSubmitting ? "저장 중..." : "저장"}
+							</Button>
 						</DialogFooter>
 					</DialogContent>
 				</Dialog>

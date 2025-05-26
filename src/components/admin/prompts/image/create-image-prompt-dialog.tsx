@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 interface CreateImagePromptDialogProps {
@@ -22,9 +21,7 @@ interface CreateImagePromptDialogProps {
 	onClose: () => void;
 	onCreate: (
 		name: string,
-		image_prompt: string,
-		tags: string,
-		content: string
+		llm_prompt: string // image_prompt에서 llm_prompt로 변경, tags와 content 제거
 	) => Promise<void>;
 	isSubmitting: boolean;
 }
@@ -36,16 +33,12 @@ export function CreateImagePromptDialog({
 	isSubmitting,
 }: CreateImagePromptDialogProps) {
 	const [name, setName] = useState("");
-	const [imagePrompt, setImagePrompt] = useState("");
-	const [content, setContent] = useState("");
-	const [tags, setTags] = useState("");
+	const [llmPrompt, setLlmPrompt] = useState(""); // imagePrompt에서 llmPrompt로 변경
 
 	useEffect(() => {
 		if (isOpen) {
 			setName("");
-			setImagePrompt("");
-			setContent("");
-			setTags("");
+			setLlmPrompt(""); // 초기화
 		}
 	}, [isOpen]);
 
@@ -54,11 +47,12 @@ export function CreateImagePromptDialog({
 			toast.error("프롬프트 이름은 필수입니다.");
 			return;
 		}
-		if (!imagePrompt.trim()) {
+		if (!llmPrompt.trim()) {
+			// imagePrompt에서 llmPrompt로 변경
 			toast.error("프롬프트 내용은 필수입니다.");
 			return;
 		}
-		await onCreate(name, imagePrompt, tags, content);
+		await onCreate(name, llmPrompt); // tags와 content 파라미터 제거
 	};
 
 	return (
@@ -72,8 +66,7 @@ export function CreateImagePromptDialog({
 				<DialogHeader>
 					<DialogTitle>새 이미지 프롬프트 생성</DialogTitle>
 					<DialogDescription>
-						이미지 생성에 사용될 프롬프트의 이름, 내용, 첫 버전 내용, 태그를
-						입력하세요.
+						이미지 생성에 사용될 프롬프트의 이름과 내용을 입력하세요.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="grid gap-4 py-4">
@@ -92,46 +85,22 @@ export function CreateImagePromptDialog({
 					</div>
 					<div className="grid grid-cols-4 items-start gap-4">
 						<Label
-							htmlFor="image-prompt"
+							htmlFor="llm-prompt" // id 변경
 							className="text-right col-span-1 pt-2"
 						>
-							이미지 프롬프트*
+							LLM 프롬프트* {/* 라벨 변경 */}
 						</Label>
 						<Textarea
-							id="image-prompt"
-							value={imagePrompt}
-							onChange={(e) => setImagePrompt(e.target.value)}
+							id="llm-prompt" // id 변경
+							value={llmPrompt} // state 변경
+							onChange={(e) => setLlmPrompt(e.target.value)} // handler 변경
 							className="col-span-3 min-h-[150px]"
 							placeholder="이미지 생성에 사용될 프롬프트 내용을 입력하세요..."
 							disabled={isSubmitting}
 						/>
 					</div>
-					<div className="grid grid-cols-4 items-start gap-4">
-						<Label htmlFor="content" className="text-right col-span-1 pt-2">
-							버전 내용
-						</Label>
-						<Textarea
-							id="content"
-							value={content}
-							onChange={(e) => setContent(e.target.value)}
-							placeholder="첫 번째 버전의 내용을 입력하세요... (기본적으로 프롬프트 내용과 동일)"
-							className="col-span-3"
-							disabled={isSubmitting}
-						/>
-					</div>
-					<div className="grid grid-cols-4 items-center gap-4">
-						<Label htmlFor="prompt-tags" className="text-right col-span-1">
-							태그 (쉼표 구분)
-						</Label>
-						<Input
-							id="prompt-tags"
-							value={tags}
-							onChange={(e) => setTags(e.target.value)}
-							className="col-span-3"
-							placeholder="예: SF, 미래, 도시, 밤"
-							disabled={isSubmitting}
-						/>
-					</div>
+					{/* 버전 내용 입력 필드 제거 */}
+					{/* 태그 입력 필드 제거 */}
 				</div>
 				<DialogFooter>
 					<DialogClose asChild>
@@ -147,7 +116,7 @@ export function CreateImagePromptDialog({
 					<Button
 						type="submit"
 						onClick={handleSubmit}
-						disabled={isSubmitting || !name.trim() || !imagePrompt.trim()}
+						disabled={isSubmitting || !name.trim() || !llmPrompt.trim()} // 조건 변경
 					>
 						{isSubmitting ? "저장 중..." : "프롬프트 저장"}
 					</Button>
