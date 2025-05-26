@@ -410,13 +410,12 @@ export default function ImagePromptsPage() {
 							<TableHead className="min-w-[120px]">생성자</TableHead>
 							<TableHead className="min-w-[150px]">최종 수정일</TableHead>
 							<TableHead className="text-right w-[100px]">액션</TableHead>
-						</TableRow>a
+						</TableRow>
 					</TableHeader>
-
 					<TableBody>
 						{isLoading ? (
 							<TableRow>
-								<TableCell colSpan={6} className="h-24 text-center">  {/* 7에서 6으로 변경 */}
+								<TableCell colSpan={6} className="h-24 text-center">
 									<div className="flex justify-center items-center">
 										<Loader2 className="mr-2 h-8 w-8 animate-spin" />
 										<span>데이터를 불러오는 중입니다...</span>
@@ -426,7 +425,7 @@ export default function ImagePromptsPage() {
 						) : error ? (
 							<TableRow>
 								<TableCell
-									colSpan={6}  {/* 7에서 6으로 변경 */}
+									colSpan={6}
 									className="h-24 text-center text-red-500"
 								>
 									{error}
@@ -434,7 +433,7 @@ export default function ImagePromptsPage() {
 							</TableRow>
 						) : prompts.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={6} className="h-24 text-center">  {/* 7에서 6으로 변경 */}
+								<TableCell colSpan={6} className="h-24 text-center">
 									표시할 프롬프트가 없습니다.
 								</TableCell>
 							</TableRow>
@@ -448,7 +447,9 @@ export default function ImagePromptsPage() {
 										</TableCell>
 										<TableCell>v{prompt.version}</TableCell>
 										<TableCell>
-											{prompt.created_by ? `사용자 ${prompt.created_by}` : "N/A"}
+											{prompt.created_by
+												? `사용자 ${prompt.created_by}`
+												: "N/A"}
 										</TableCell>
 										<TableCell>{formatDate(prompt.updated_at)}</TableCell>
 										<TableCell className="text-right">
