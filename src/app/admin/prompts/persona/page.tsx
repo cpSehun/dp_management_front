@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, Loader2 } from "lucide-react";
+import { MoreHorizontal, Loader2, Eye, Edit } from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -33,7 +33,6 @@ import {
 import { toast } from "sonner";
 import { PaginationControls } from "@/components/pagination-controls";
 import { PromptPageHeader } from "@/components/admin/prompt-page-header";
-import { Checkbox } from "@/components/ui/checkbox";
 import { CreatePersonaPromptDialog } from "@/components/admin/prompts/persona/create-persona-prompt-dialog";
 
 // 타입 정의
@@ -69,7 +68,6 @@ export default function PersonaPromptsPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [totalPrompts, setTotalPrompts] = useState(0);
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-	const [selectedPrompts, setSelectedPrompts] = useState<number[]>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	// 페이지네이션 상태
@@ -88,10 +86,16 @@ export default function PersonaPromptsPage() {
 		name: "",
 		llm_prompt: "",
 	});
+	const [originalLlmPrompt, setOriginalLlmPrompt] = useState(""); // 변경 감지용
 	const [promptVersions, setPromptVersions] = useState<PersonaPromptVersion[]>(
 		[]
 	);
 	const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+
+	// 상세보기 모달 관련 상태
+	const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+	const [selectedPromptForDetail, setSelectedPromptForDetail] =
+		useState<PersonaPrompt | null>(null);
 
 	// Debounce search term
 	useEffect(() => {
@@ -225,6 +229,12 @@ export default function PersonaPromptsPage() {
 		}
 	};
 
+	// 상세보기 다이얼로그 열기
+	const handleOpenDetailDialog = (prompt: PersonaPrompt) => {
+		setSelectedPromptForDetail(prompt);
+		setIsDetailDialogOpen(true);
+	};
+
 	// 수정 다이얼로그 열기
 	const handleOpenEditDialog = async (prompt: PersonaPrompt) => {
 		setSelectedPromptForEdit(prompt);
@@ -232,6 +242,7 @@ export default function PersonaPromptsPage() {
 			name: prompt.name,
 			llm_prompt: prompt.llm_prompt,
 		});
+		setOriginalLlmPrompt(prompt.llm_prompt); // 원본 값 저장
 
 		// 버전 히스토리 조회
 		await fetchPromptVersions(prompt.id);
@@ -275,6 +286,9 @@ export default function PersonaPromptsPage() {
 		});
 	};
 
+	// 변경사항 확인 (llm_prompt만 체크)
+	const hasChanges = editFormData.llm_prompt !== originalLlmPrompt;
+
 	// 프롬프트 수정 저장
 	const handleSaveEdit = async () => {
 		if (!selectedPromptForEdit) return;
@@ -292,7 +306,7 @@ export default function PersonaPromptsPage() {
 						"Content-Type": "application/json",
 						Authorization: `Bearer ${token}`,
 					},
-					body: JSON.stringify(editFormData),
+					body: JSON.stringify({ llm_prompt: editFormData.llm_prompt }),
 				}
 			);
 
@@ -350,6 +364,7 @@ export default function PersonaPromptsPage() {
 		setIsEditDialogOpen(false);
 		setSelectedPromptForEdit(null);
 		setEditFormData({ name: "", llm_prompt: "" });
+		setOriginalLlmPrompt("");
 		setPromptVersions([]);
 	};
 
@@ -403,21 +418,6 @@ export default function PersonaPromptsPage() {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead className="w-[40px]">
-								<Checkbox
-									checked={
-										prompts.length > 0 &&
-										selectedPrompts.length === prompts.length
-									}
-									onCheckedChange={(checked) => {
-										if (checked) {
-											setSelectedPrompts(prompts.map((p) => p.id));
-										} else {
-											setSelectedPrompts([]);
-										}
-									}}
-								/>
-							</TableHead>
 							<TableHead className="min-w-[150px]">이름</TableHead>
 							<TableHead className="min-w-[200px] max-w-[300px] truncate">
 								LLM 프롬프트
@@ -431,7 +431,7 @@ export default function PersonaPromptsPage() {
 					<TableBody>
 						{isLoading ? (
 							<TableRow>
-								<TableCell colSpan={7} className="h-24 text-center">
+								<TableCell colSpan={6} className="h-24 text-center">
 									<div className="flex justify-center items-center">
 										<Loader2 className="mr-2 h-8 w-8 animate-spin" />
 										<span>데이터를 불러오는 중입니다...</span>
@@ -441,7 +441,7 @@ export default function PersonaPromptsPage() {
 						) : error ? (
 							<TableRow>
 								<TableCell
-									colSpan={7}
+									colSpan={6}
 									className="h-24 text-center text-red-500"
 								>
 									{error}
@@ -449,7 +449,7 @@ export default function PersonaPromptsPage() {
 							</TableRow>
 						) : prompts.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={7} className="h-24 text-center">
+								<TableCell colSpan={6} className="h-24 text-center">
 									표시할 프롬프트가 없습니다.
 								</TableCell>
 							</TableRow>
@@ -457,20 +457,6 @@ export default function PersonaPromptsPage() {
 							prompts.slice(startIndex, endIndex).map((prompt) => {
 								return (
 									<TableRow key={prompt.id}>
-										<TableCell>
-											<Checkbox
-												checked={selectedPrompts.includes(prompt.id)}
-												onCheckedChange={(checked) => {
-													if (checked) {
-														setSelectedPrompts([...selectedPrompts, prompt.id]);
-													} else {
-														setSelectedPrompts(
-															selectedPrompts.filter((id) => id !== prompt.id)
-														);
-													}
-												}}
-											/>
-										</TableCell>
 										<TableCell className="font-medium">{prompt.name}</TableCell>
 										<TableCell className="truncate max-w-[300px]">
 											{prompt.llm_prompt || "N/A"}
@@ -491,8 +477,15 @@ export default function PersonaPromptsPage() {
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end">
 													<DropdownMenuItem
+														onSelect={() => handleOpenDetailDialog(prompt)}
+													>
+														<Eye className="mr-2 h-4 w-4" />
+														상세보기
+													</DropdownMenuItem>
+													<DropdownMenuItem
 														onSelect={() => handleOpenEditDialog(prompt)}
 													>
+														<Edit className="mr-2 h-4 w-4" />
 														수정
 													</DropdownMenuItem>
 												</DropdownMenuContent>
@@ -514,19 +507,88 @@ export default function PersonaPromptsPage() {
 				/>
 			)}
 
+			{/* 상세보기 모달 */}
+			{selectedPromptForDetail && (
+				<Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+					<DialogContent className="sm:max-w-[600px]">
+						<DialogHeader>
+							<DialogTitle>페르소나 프롬프트 상세보기</DialogTitle>
+							<DialogDescription>
+								페르소나 프롬프트의 상세 정보를 확인할 수 있습니다.
+							</DialogDescription>
+						</DialogHeader>
+
+						<div className="grid gap-4 py-4">
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label className="text-right font-medium">이름</Label>
+								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
+									{selectedPromptForDetail.name}
+								</div>
+							</div>
+
+							<div className="grid grid-cols-4 items-start gap-4">
+								<Label className="text-right pt-2 font-medium">
+									LLM 프롬프트
+								</Label>
+								<div className="col-span-3 p-3 bg-gray-50 rounded border text-gray-700 min-h-[120px] whitespace-pre-wrap">
+									{selectedPromptForDetail.llm_prompt}
+								</div>
+							</div>
+
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label className="text-right font-medium">현재 버전</Label>
+								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
+									v{selectedPromptForDetail.version}
+								</div>
+							</div>
+
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label className="text-right font-medium">생성자</Label>
+								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
+									{selectedPromptForDetail.created_by
+										? `사용자 ${selectedPromptForDetail.created_by}`
+										: "N/A"}
+								</div>
+							</div>
+
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label className="text-right font-medium">생성일</Label>
+								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
+									{formatDate(selectedPromptForDetail.created_at)}
+								</div>
+							</div>
+
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label className="text-right font-medium">최종 수정일</Label>
+								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
+									{formatDate(selectedPromptForDetail.updated_at)}
+								</div>
+							</div>
+						</div>
+
+						<DialogFooter>
+							<DialogClose asChild>
+								<Button variant="outline">닫기</Button>
+							</DialogClose>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			)}
+
 			{/* 수정 모달 */}
 			{selectedPromptForEdit && (
 				<Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
 					<DialogContent className="sm:max-w-[800px]">
 						<DialogHeader>
-							<DialogTitle>프롬프트 수정</DialogTitle>
+							<DialogTitle>페르소나 프롬프트 수정</DialogTitle>
 							<DialogDescription>
-								프롬프트 내용을 수정하거나 이전 버전으로 롤백할 수 있습니다.
+								페르소나 프롬프트 내용을 수정하거나 이전 버전으로 롤백할 수
+								있습니다.
 							</DialogDescription>
 						</DialogHeader>
 
 						<div className="grid gap-4 py-4">
-							{/* 이름 입력 */}
+							{/* 이름 입력 - 읽기전용 */}
 							<div className="grid grid-cols-4 items-center gap-4">
 								<Label htmlFor="edit-name" className="text-right">
 									이름
@@ -534,13 +596,8 @@ export default function PersonaPromptsPage() {
 								<Input
 									id="edit-name"
 									value={editFormData.name}
-									onChange={(e) =>
-										setEditFormData({
-											...editFormData,
-											name: e.target.value,
-										})
-									}
-									className="col-span-3"
+									readOnly
+									className="col-span-3 bg-gray-50 text-gray-600 cursor-not-allowed"
 								/>
 							</div>
 
@@ -624,7 +681,10 @@ export default function PersonaPromptsPage() {
 							<Button variant="outline" onClick={handleCloseEditDialog}>
 								취소
 							</Button>
-							<Button onClick={handleSaveEdit} disabled={isSubmitting}>
+							<Button
+								onClick={handleSaveEdit}
+								disabled={isSubmitting || !hasChanges}
+							>
 								{isSubmitting ? "저장 중..." : "저장"}
 							</Button>
 						</DialogFooter>

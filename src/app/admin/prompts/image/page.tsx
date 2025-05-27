@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, Loader2 } from "lucide-react";
+import { MoreHorizontal, Loader2, Eye, Edit } from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -86,10 +86,16 @@ export default function ImagePromptsPage() {
 		name: "",
 		llm_prompt: "",
 	});
+	const [originalLlmPrompt, setOriginalLlmPrompt] = useState(""); // 변경 감지용
 	const [promptVersions, setPromptVersions] = useState<ImagePromptVersion[]>(
 		[]
 	);
 	const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+
+	// 상세보기 모달 관련 상태
+	const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+	const [selectedPromptForDetail, setSelectedPromptForDetail] =
+		useState<ImagePrompt | null>(null);
 
 	// Debounce search term
 	useEffect(() => {
@@ -222,6 +228,12 @@ export default function ImagePromptsPage() {
 		}
 	};
 
+	// 상세보기 다이얼로그 열기
+	const handleOpenDetailDialog = (prompt: ImagePrompt) => {
+		setSelectedPromptForDetail(prompt);
+		setIsDetailDialogOpen(true);
+	};
+
 	// 수정 다이얼로그 열기
 	const handleOpenEditDialog = async (prompt: ImagePrompt) => {
 		setSelectedPromptForEdit(prompt);
@@ -229,6 +241,7 @@ export default function ImagePromptsPage() {
 			name: prompt.name,
 			llm_prompt: prompt.llm_prompt,
 		});
+		setOriginalLlmPrompt(prompt.llm_prompt); // 원본 값 저장
 
 		// 버전 히스토리 조회
 		await fetchPromptVersions(prompt.id);
@@ -272,6 +285,9 @@ export default function ImagePromptsPage() {
 		});
 	};
 
+	// 변경사항 확인 (llm_prompt만 체크)
+	const hasChanges = editFormData.llm_prompt !== originalLlmPrompt;
+
 	// 프롬프트 수정 저장
 	const handleSaveEdit = async () => {
 		if (!selectedPromptForEdit) return;
@@ -289,7 +305,7 @@ export default function ImagePromptsPage() {
 						"Content-Type": "application/json",
 						Authorization: `Bearer ${token}`,
 					},
-					body: JSON.stringify(editFormData),
+					body: JSON.stringify({ llm_prompt: editFormData.llm_prompt }),
 				}
 			);
 
@@ -347,6 +363,7 @@ export default function ImagePromptsPage() {
 		setIsEditDialogOpen(false);
 		setSelectedPromptForEdit(null);
 		setEditFormData({ name: "", llm_prompt: "" });
+		setOriginalLlmPrompt("");
 		setPromptVersions([]);
 	};
 
@@ -461,8 +478,15 @@ export default function ImagePromptsPage() {
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end">
 													<DropdownMenuItem
+														onSelect={() => handleOpenDetailDialog(prompt)}
+													>
+														<Eye className="mr-2 h-4 w-4" />
+														상세보기
+													</DropdownMenuItem>
+													<DropdownMenuItem
 														onSelect={() => handleOpenEditDialog(prompt)}
 													>
+														<Edit className="mr-2 h-4 w-4" />
 														수정
 													</DropdownMenuItem>
 												</DropdownMenuContent>
@@ -484,6 +508,74 @@ export default function ImagePromptsPage() {
 				/>
 			)}
 
+			{/* 상세보기 모달 */}
+			{selectedPromptForDetail && (
+				<Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+					<DialogContent className="sm:max-w-[600px]">
+						<DialogHeader>
+							<DialogTitle>프롬프트 상세보기</DialogTitle>
+							<DialogDescription>
+								프롬프트의 상세 정보를 확인할 수 있습니다.
+							</DialogDescription>
+						</DialogHeader>
+
+						<div className="grid gap-4 py-4">
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label className="text-right font-medium">이름</Label>
+								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
+									{selectedPromptForDetail.name}
+								</div>
+							</div>
+
+							<div className="grid grid-cols-4 items-start gap-4">
+								<Label className="text-right pt-2 font-medium">
+									LLM 프롬프트
+								</Label>
+								<div className="col-span-3 p-3 bg-gray-50 rounded border text-gray-700 min-h-[120px] whitespace-pre-wrap">
+									{selectedPromptForDetail.llm_prompt}
+								</div>
+							</div>
+
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label className="text-right font-medium">현재 버전</Label>
+								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
+									v{selectedPromptForDetail.version}
+								</div>
+							</div>
+
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label className="text-right font-medium">생성자</Label>
+								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
+									{selectedPromptForDetail.created_by
+										? `사용자 ${selectedPromptForDetail.created_by}`
+										: "N/A"}
+								</div>
+							</div>
+
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label className="text-right font-medium">생성일</Label>
+								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
+									{formatDate(selectedPromptForDetail.created_at)}
+								</div>
+							</div>
+
+							<div className="grid grid-cols-4 items-center gap-4">
+								<Label className="text-right font-medium">최종 수정일</Label>
+								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
+									{formatDate(selectedPromptForDetail.updated_at)}
+								</div>
+							</div>
+						</div>
+
+						<DialogFooter>
+							<DialogClose asChild>
+								<Button variant="outline">닫기</Button>
+							</DialogClose>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			)}
+
 			{/* 수정 모달 */}
 			{selectedPromptForEdit && (
 				<Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
@@ -496,7 +588,7 @@ export default function ImagePromptsPage() {
 						</DialogHeader>
 
 						<div className="grid gap-4 py-4">
-							{/* 이름 입력 */}
+							{/* 이름 입력 - 읽기전용 */}
 							<div className="grid grid-cols-4 items-center gap-4">
 								<Label htmlFor="edit-name" className="text-right">
 									이름
@@ -504,13 +596,8 @@ export default function ImagePromptsPage() {
 								<Input
 									id="edit-name"
 									value={editFormData.name}
-									onChange={(e) =>
-										setEditFormData({
-											...editFormData,
-											name: e.target.value,
-										})
-									}
-									className="col-span-3"
+									readOnly
+									className="col-span-3 bg-gray-50 text-gray-600 cursor-not-allowed"
 								/>
 							</div>
 
@@ -594,7 +681,10 @@ export default function ImagePromptsPage() {
 							<Button variant="outline" onClick={handleCloseEditDialog}>
 								취소
 							</Button>
-							<Button onClick={handleSaveEdit} disabled={isSubmitting}>
+							<Button
+								onClick={handleSaveEdit}
+								disabled={isSubmitting || !hasChanges}
+							>
 								{isSubmitting ? "저장 중..." : "저장"}
 							</Button>
 						</DialogFooter>
