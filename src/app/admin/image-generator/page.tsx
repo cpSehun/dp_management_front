@@ -379,7 +379,8 @@ export default function ImageGeneratorPage() {
 		setSaveSuccess(false);
 	};
 
-	// 최종 S3 저장 및 DB 메타데이터 저장 로직 (예시)
+	// 최종 S3 저장 및 DB 메타데이터 저장 로직
+
 	const handleConfirmAndSaveToS3 = async () => {
 		if (!imageToConfirm || !confirmImageName.trim()) {
 			setError(
@@ -395,15 +396,14 @@ export default function ImageGeneratorPage() {
 		setSaveSuccess(false);
 
 		try {
-			// 1단계: S3에 이미지 업로드 (기존 save-images API 활용 또는 단일 저장 API)
-			// 백엔드는 S3 URL을 반환해야 함
+			// 1단계: S3에 이미지 업로드
 			const imageUrlToSave = imageToConfirm.original_url || imageToConfirm.url;
 			if (!imageUrlToSave) {
 				throw new Error("유효한 이미지 URL이 없습니다.");
 			}
 
 			const s3SaveResponse = await fetch(
-				"/api/v1/image-generator/s3/save-images", // 이 엔드포인트는 단일 URL도 처리 가능해야 함
+				"/api/v1/image-generator/s3/save-images",
 				{
 					method: "POST",
 					headers: {
@@ -411,10 +411,7 @@ export default function ImageGeneratorPage() {
 						Authorization: `Bearer ${localStorage.getItem("access_token")}`,
 					},
 					body: JSON.stringify({
-						image_urls: [imageUrlToSave], // 배열로 전달
-						// 만약 백엔드가 image_url과 is_base64를 함께 받는다면 아래와 같이 수정
-						// image_url: imageUrlToSave,
-						// is_base64: imageToConfirm.is_base64,
+						image_urls: [imageUrlToSave],
 					}),
 				}
 			);
@@ -425,14 +422,12 @@ export default function ImageGeneratorPage() {
 			}
 
 			const s3SaveResult = await s3SaveResponse.json();
-			// s3SaveResult는 백엔드 응답 형식에 따라 s3_url을 추출
-			// 응답 예시: { "success": true, "message": "...", "saved_s3_urls": ["url1"], "failed_urls": null }
 			const s3Url =
 				s3SaveResult.success &&
 				Array.isArray(s3SaveResult.saved_s3_urls) &&
 				s3SaveResult.saved_s3_urls.length > 0
 					? s3SaveResult.saved_s3_urls[0]
-					: null; // 또는 undefined, 오류 처리에 따라
+					: null;
 
 			if (!s3Url) {
 				throw new Error(
@@ -443,22 +438,24 @@ export default function ImageGeneratorPage() {
 
 			console.log("S3 저장 성공:", s3Url);
 
-			// 2단계: DB에 메타데이터 저장 (새로운 API 엔드포인트 필요)
-			// 이 부분은 백엔드 API가 준비된 후 구현해야 합니다.
-			/*
+			// 2단계: DB에 메타데이터 저장
 			const metadataToSave = {
-				s3_url: s3Url,
 				name: confirmImageName,
-				tags: confirmImageTags.split(',').map(tag => tag.trim()).filter(tag => tag),
 				prompt: imageToConfirm.prompt,
-				model_name: imageToConfirm.modelName,
-				steps: imageToConfirm.steps,
-				seed: imageToConfirm.seed,
-				original_url: imageToConfirm.original_url || imageToConfirm.url,
-				// 기타 필요한 메타데이터
+				model: imageToConfirm.modelName,
+				s3_url: s3Url,
+				tags: confirmImageTags
+					.split(",")
+					.map((tag) => tag.trim())
+					.filter((tag) => tag)
+					.join(","),
+				steps:
+					imageToConfirm.modelName === "flux-dev" ? imageToConfirm.steps : null,
+				seed:
+					imageToConfirm.modelName === "flux-dev" ? imageToConfirm.seed : null,
 			};
 
-			const dbSaveResponse = await fetch("/api/v1/images/metadata/save", { // 예시 엔드포인트
+			const dbSaveResponse = await fetch("/api/v1/images/metadata/save", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -469,10 +466,13 @@ export default function ImageGeneratorPage() {
 
 			if (!dbSaveResponse.ok) {
 				const errorData = await dbSaveResponse.json();
-				throw new Error(errorData.detail || "이미지 메타데이터 DB 저장에 실패했습니다.");
+				throw new Error(
+					errorData.detail || "이미지 메타데이터 DB 저장에 실패했습니다."
+				);
 			}
-			console.log("DB 메타데이터 저장 성공:", await dbSaveResponse.json());
-			*/
+
+			const dbSaveResult = await dbSaveResponse.json();
+			console.log("DB 메타데이터 저장 성공:", dbSaveResult);
 
 			setSaveSuccess(true);
 			setIsConfirmDialogOpen(false);
