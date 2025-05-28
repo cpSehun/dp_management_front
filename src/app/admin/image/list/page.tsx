@@ -1,19 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-	Table,
-	TableBody,
-	TableCaption,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Search, Trash2, MoreHorizontal, ExternalLink } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ExternalLink, Trash2, Eye } from "lucide-react";
 import {
 	Dialog,
 	DialogContent,
@@ -22,24 +12,20 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { PaginationControls } from "@/components/pagination-controls";
+	AdminTable,
+	AdminTableHeader,
+	AdminTableHeaderCell,
+	AdminTableBody,
+	AdminTableRow,
+	AdminTableCell,
+	AdminTableLoadingRow,
+	AdminTableEmptyRow,
+} from "@/components/admin/AdminTable";
+import { ActionDropdown, ActionItem } from "@/components/admin/ActionDropdown";
+import { AdminPagination } from "@/components/admin/AdminPagination";
 
 // 이미지 타입 정의
 interface SavedImage {
@@ -51,14 +37,13 @@ interface SavedImage {
 	tags: string[];
 }
 
-// 페이지당 표시할 항목 수
 const ITEMS_PER_PAGE = 5;
 
 // 샘플 이미지 데이터
 const sampleImages: SavedImage[] = [
 	{
 		id: 1,
-		url: "https://placehold.co/400x400/png",
+		url: "https://picsum.photos/400/400?random=1",
 		prompt:
 			"30대 남성, 정장 차림, 깔끔한 헤어스타일, 현대적인 사무실 배경, 자신감 있는 표정",
 		model: "flux-dev",
@@ -67,7 +52,7 @@ const sampleImages: SavedImage[] = [
 	},
 	{
 		id: 2,
-		url: "https://placehold.co/400x400/png",
+		url: "https://picsum.photos/400/400?random=2",
 		prompt:
 			"20대 여성, 캐주얼하고 트렌디한 의상, 창의적인 작업 공간, 컬러풀한 배경, 태블릿으로 작업 중",
 		model: "gpt-image-1",
@@ -76,12 +61,29 @@ const sampleImages: SavedImage[] = [
 	},
 	{
 		id: 3,
-		url: "https://placehold.co/400x400/png",
+		url: "https://picsum.photos/400/400?random=3",
 		prompt:
 			"40대 여성, 흰색 의사 가운, 청진기, 현대적인 의료 시설 배경, 따뜻하고 신뢰감 있는 표정",
 		model: "flux-dev",
 		createdAt: "2023-09-10T13:10:00Z",
 		tags: ["의사", "의료", "여성", "전문가"],
+	},
+	{
+		id: 4,
+		url: "https://picsum.photos/400/400?random=4",
+		prompt:
+			"미래 도시 풍경, 네온사인, 사이버펑크 스타일, 매우 상세한 디지털 아트",
+		model: "flux-dev",
+		createdAt: "2023-08-15T09:30:00Z",
+		tags: ["미래", "도시", "사이버펑크", "디지털아트"],
+	},
+	{
+		id: 5,
+		url: "https://picsum.photos/400/400?random=5",
+		prompt: "아름다운 산 풍경, 맑은 파란 하늘, 녹색 나무들, 평화로운 분위기",
+		model: "gpt-image-1",
+		createdAt: "2023-07-05T16:20:00Z",
+		tags: ["자연", "산", "풍경", "평화"],
 	},
 ];
 
@@ -91,9 +93,10 @@ export default function ImageListPage() {
 	const [filteredImages, setFilteredImages] = useState<SavedImage[]>(images);
 	const [currentPage, setCurrentPage] = useState(1);
 	const [paginatedImages, setPaginatedImages] = useState<SavedImage[]>([]);
+	const [isLoading, setIsLoading] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-	const [currentImage, setCurrentImage] = useState<SavedImage | null>(null);
 	const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
+	const [currentImage, setCurrentImage] = useState<SavedImage | null>(null);
 
 	// 검색 기능
 	useEffect(() => {
@@ -133,34 +136,10 @@ export default function ImageListPage() {
 	// 총 페이지 수 계산
 	const totalPages = Math.ceil(filteredImages.length / ITEMS_PER_PAGE);
 
-	// 이미지 데이터 가져오기 (실제 구현 시 API 호출)
-	useEffect(() => {
-		const fetchImages = async () => {
-			try {
-				// 실제 구현에서는 아래 코드를 API 호출로 변경
-				/*
-				const response = await fetch("/api/v1/images", {
-					headers: {
-						Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-					},
-				});
-
-				if (response.ok) {
-					const data = await response.json();
-					setImages(data);
-				} else {
-					console.error("이미지 목록을 가져오는데 실패했습니다");
-				}
-				*/
-				// 샘플 데이터 사용
-				setImages(sampleImages);
-			} catch (error) {
-				console.error("이미지 목록 가져오기 오류:", error);
-			}
-		};
-
-		fetchImages();
-	}, []);
+	// 이미지 생성 페이지로 이동
+	const handleCreateImage = () => {
+		window.location.href = "/admin/image-generator";
+	};
 
 	// 삭제 대화상자 열기
 	const handleOpenDelete = (image: SavedImage) => {
@@ -173,21 +152,7 @@ export default function ImageListPage() {
 		if (!currentImage) return;
 
 		try {
-			// 실제 구현에서는 아래 코드를 API 호출로 변경
-			/*
-			const response = await fetch(`/api/v1/images/${currentImage.id}`, {
-				method: "DELETE",
-				headers: {
-					Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-				},
-			});
-
-			if (!response.ok) {
-				throw new Error("이미지 삭제에 실패했습니다.");
-			}
-			*/
-
-			// 프론트엔드에서 이미지 제거
+			// 실제 구현에서는 API 호출
 			setImages((prev) => prev.filter((img) => img.id !== currentImage.id));
 			setIsDeleteDialogOpen(false);
 			setCurrentImage(null);
@@ -220,54 +185,63 @@ export default function ImageListPage() {
 		return `${prompt.substring(0, maxLength)}...`;
 	};
 
+	// 각 이미지의 액션 메뉴 생성
+	const getImageActions = (image: SavedImage): ActionItem[] => [
+		{
+			label: "상세보기",
+			icon: <Eye className="h-4 w-4" />,
+			onClick: () => handleOpenPreview(image),
+		},
+		{
+			label: "삭제",
+			icon: <Trash2 className="h-4 w-4" />,
+			variant: "destructive",
+			onClick: () => handleOpenDelete(image),
+		},
+	];
+
 	return (
-		<div className="container mx-auto p-6 space-y-6">
-			<div className="flex items-center justify-between">
-				<h1 className="text-2xl font-semibold">이미지 목록</h1>
-				<Button
-					onClick={() => (window.location.href = "/admin/image/generator")}
-				>
-					새 이미지 생성
-				</Button>
-			</div>
+		<AdminPageLayout>
+			<AdminPageHeader
+				title="이미지 목록"
+				searchPlaceholder="프롬프트, 모델, 태그 검색..."
+				searchValue={searchTerm}
+				onSearchChange={setSearchTerm}
+				onCreateClick={handleCreateImage}
+				createButtonText="새 이미지 생성"
+			/>
 
-			{/* 검색 */}
-			<div className="flex w-full max-w-sm items-center space-x-2">
-				<Input
-					type="text"
-					placeholder="프롬프트, 모델, 태그 검색..."
-					value={searchTerm}
-					onChange={(e) => setSearchTerm(e.target.value)}
-				/>
-				<Button type="submit" size="icon">
-					<Search className="h-4 w-4" />
-					<span className="sr-only">검색</span>
-				</Button>
-			</div>
-
-			{/* 이미지 테이블 */}
-			<div className="rounded-md border">
-				<Table>
-					<TableCaption>
-						이미지 목록 ({filteredImages.length}개 중 {paginatedImages.length}개
-						표시)
-					</TableCaption>
-					<TableHeader>
-						<TableRow>
-							<TableHead>미리보기</TableHead>
-							<TableHead className="w-[300px]">프롬프트</TableHead>
-							<TableHead>모델</TableHead>
-							<TableHead>태그</TableHead>
-							<TableHead>생성일</TableHead>
-							<TableHead className="text-right">관리</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{paginatedImages.map((image) => (
-							<TableRow key={image.id}>
-								<TableCell>
+			<AdminTable>
+				<AdminTableHeader>
+					<AdminTableHeaderCell>미리보기</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="min-w-[200px] max-w-[300px]">
+						프롬프트
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell>모델</AdminTableHeaderCell>
+					<AdminTableHeaderCell>태그</AdminTableHeaderCell>
+					<AdminTableHeaderCell>생성일</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="text-right">
+						관리
+					</AdminTableHeaderCell>
+				</AdminTableHeader>
+				<AdminTableBody>
+					{isLoading ? (
+						<AdminTableLoadingRow colSpan={6} />
+					) : paginatedImages.length === 0 ? (
+						<AdminTableEmptyRow
+							colSpan={6}
+							message={
+								searchTerm
+									? "검색 결과가 없습니다."
+									: "등록된 이미지가 없습니다."
+							}
+						/>
+					) : (
+						paginatedImages.map((image) => (
+							<AdminTableRow key={image.id}>
+								<AdminTableCell>
 									<div
-										className="w-12 h-12 rounded overflow-hidden cursor-pointer"
+										className="w-12 h-12 rounded overflow-hidden cursor-pointer bg-gray-100 hover:opacity-80 transition-opacity"
 										onClick={() => handleOpenPreview(image)}
 									>
 										<img
@@ -276,64 +250,48 @@ export default function ImageListPage() {
 											className="w-full h-full object-cover"
 										/>
 									</div>
-								</TableCell>
-								<TableCell className="font-medium">
-									{truncatePrompt(image.prompt, 50)}
-								</TableCell>
-								<TableCell>
+								</AdminTableCell>
+								<AdminTableCell className="max-w-[300px]">
+									<div className="truncate" title={image.prompt}>
+										{truncatePrompt(image.prompt, 50)}
+									</div>
+								</AdminTableCell>
+								<AdminTableCell>
 									<Badge variant="outline">{image.model}</Badge>
-								</TableCell>
-								<TableCell>
+								</AdminTableCell>
+								<AdminTableCell>
 									<div className="flex flex-wrap gap-1">
-										{image.tags.map((tag) => (
-											<Badge key={tag} variant="secondary">
+										{image.tags.slice(0, 2).map((tag) => (
+											<Badge key={tag} variant="secondary" className="text-xs">
 												{tag}
 											</Badge>
 										))}
+										{image.tags.length > 2 && (
+											<Badge variant="outline" className="text-xs">
+												+{image.tags.length - 2}
+											</Badge>
+										)}
 									</div>
-								</TableCell>
-								<TableCell>{formatDate(image.createdAt)}</TableCell>
-								<TableCell className="text-right">
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button variant="ghost" size="icon">
-												<MoreHorizontal className="h-4 w-4" />
-												<span className="sr-only">메뉴 열기</span>
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end">
-											<DropdownMenuLabel>작업</DropdownMenuLabel>
-											<DropdownMenuItem
-												onClick={() => handleOpenPreview(image)}
-											>
-												<ExternalLink className="mr-2 h-4 w-4" />
-												상세 보기
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												onClick={() => handleOpenDelete(image)}
-												className="text-destructive focus:text-destructive"
-											>
-												<Trash2 className="mr-2 h-4 w-4" />
-												삭제
-											</DropdownMenuItem>
-										</DropdownMenuContent>
-									</DropdownMenu>
-								</TableCell>
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-			</div>
+								</AdminTableCell>
+								<AdminTableCell>{formatDate(image.createdAt)}</AdminTableCell>
+								<AdminTableCell className="text-right">
+									<ActionDropdown actions={getImageActions(image)} />
+								</AdminTableCell>
+							</AdminTableRow>
+						))
+					)}
+				</AdminTableBody>
+			</AdminTable>
 
-			{/* 페이지네이션 */}
-			<PaginationControls
+			<AdminPagination
 				currentPage={currentPage}
 				totalPages={totalPages}
+				totalItems={filteredImages.length}
+				itemsPerPage={ITEMS_PER_PAGE}
 				onPageChange={handlePageChange}
 			/>
 
-			{/* 삭제 확인 대화상자 */}
+			{/* 삭제 확인 다이얼로그 */}
 			<Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
 				<DialogContent className="sm:max-w-[425px]">
 					<DialogHeader>
@@ -365,7 +323,7 @@ export default function ImageListPage() {
 				</DialogContent>
 			</Dialog>
 
-			{/* 이미지 상세보기 대화상자 */}
+			{/* 이미지 상세보기 다이얼로그 */}
 			<Dialog open={isPreviewDialogOpen} onOpenChange={setIsPreviewDialogOpen}>
 				<DialogContent className="sm:max-w-[700px]">
 					<DialogHeader>
@@ -382,24 +340,34 @@ export default function ImageListPage() {
 							</div>
 							<div className="space-y-4">
 								<div>
-									<h4 className="text-sm font-semibold mb-1">프롬프트</h4>
-									<p className="text-sm">{currentImage.prompt}</p>
+									<h4 className="text-sm font-semibold mb-1 text-gray-700">
+										프롬프트
+									</h4>
+									<p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border">
+										{currentImage.prompt}
+									</p>
 								</div>
 								<div>
-									<h4 className="text-sm font-semibold mb-1">모델</h4>
-									<p className="text-sm">{currentImage.model}</p>
+									<h4 className="text-sm font-semibold mb-1 text-gray-700">
+										모델
+									</h4>
+									<Badge variant="outline">{currentImage.model}</Badge>
 								</div>
 								<div>
-									<h4 className="text-sm font-semibold mb-1">생성일</h4>
-									<p className="text-sm">
+									<h4 className="text-sm font-semibold mb-1 text-gray-700">
+										생성일
+									</h4>
+									<p className="text-sm text-gray-600">
 										{formatDate(currentImage.createdAt)}
 									</p>
 								</div>
 								<div>
-									<h4 className="text-sm font-semibold mb-1">태그</h4>
+									<h4 className="text-sm font-semibold mb-1 text-gray-700">
+										태그
+									</h4>
 									<div className="flex flex-wrap gap-1">
 										{currentImage.tags.map((tag) => (
-											<Badge key={tag} variant="outline">
+											<Badge key={tag} variant="outline" className="text-xs">
 												{tag}
 											</Badge>
 										))}
@@ -413,6 +381,7 @@ export default function ImageListPage() {
 											target="_blank"
 											rel="noopener noreferrer"
 										>
+											<ExternalLink className="mr-2 h-4 w-4" />
 											이미지 다운로드
 										</a>
 									</Button>
@@ -420,8 +389,16 @@ export default function ImageListPage() {
 							</div>
 						</div>
 					)}
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setIsPreviewDialogOpen(false)}
+						>
+							닫기
+						</Button>
+					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</div>
+		</AdminPageLayout>
 	);
 }

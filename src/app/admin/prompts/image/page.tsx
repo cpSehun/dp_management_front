@@ -2,14 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Eye, Edit } from "lucide-react";
 import {
 	Dialog,
 	DialogContent,
@@ -22,20 +16,24 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, Loader2, Eye, Edit } from "lucide-react";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { PaginationControls } from "@/components/pagination-controls";
-import { PromptPageHeader } from "@/components/admin/prompt-page-header";
+import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import {
+	AdminTable,
+	AdminTableHeader,
+	AdminTableHeaderCell,
+	AdminTableBody,
+	AdminTableRow,
+	AdminTableCell,
+	AdminTableLoadingRow,
+	AdminTableEmptyRow,
+} from "@/components/admin/AdminTable";
+import { ActionDropdown, ActionItem } from "@/components/admin/ActionDropdown";
+import { AdminPagination } from "@/components/admin/AdminPagination";
 import { CreateImagePromptDialog } from "@/components/admin/prompts/image/create-image-prompt-dialog";
 
-// 타입 정의
+// 타입 정의 (기존과 동일)
 interface ImagePromptVersion {
 	id: number;
 	version: number;
@@ -86,7 +84,7 @@ export default function ImagePromptsPage() {
 		name: "",
 		llm_prompt: "",
 	});
-	const [originalLlmPrompt, setOriginalLlmPrompt] = useState(""); // 변경 감지용
+	const [originalLlmPrompt, setOriginalLlmPrompt] = useState("");
 	const [promptVersions, setPromptVersions] = useState<ImagePromptVersion[]>(
 		[]
 	);
@@ -183,11 +181,6 @@ export default function ImagePromptsPage() {
 				llm_prompt: llm_prompt,
 			};
 
-			console.log(
-				"Data being sent to /api/v1/prompts/image:",
-				JSON.stringify(newPromptData, null, 2)
-			);
-
 			const response = await fetch("/api/v1/prompts/image/", {
 				method: "POST",
 				headers: {
@@ -241,7 +234,7 @@ export default function ImagePromptsPage() {
 			name: prompt.name,
 			llm_prompt: prompt.llm_prompt,
 		});
-		setOriginalLlmPrompt(prompt.llm_prompt); // 원본 값 저장
+		setOriginalLlmPrompt(prompt.llm_prompt);
 
 		// 버전 히스토리 조회
 		await fetchPromptVersions(prompt.id);
@@ -382,28 +375,75 @@ export default function ImagePromptsPage() {
 		);
 	};
 
-	// Calculate startIndex and endIndex for pagination
-	const startIndex = (currentPage - 1) * itemsPerPage;
-	const endIndex = startIndex + itemsPerPage;
+	// 각 프롬프트의 액션 메뉴 생성
+	const getPromptActions = (prompt: ImagePrompt): ActionItem[] => [
+		{
+			label: "상세보기",
+			icon: <Eye className="h-4 w-4" />,
+			onClick: () => handleOpenDetailDialog(prompt),
+		},
+		{
+			label: "수정",
+			icon: <Edit className="h-4 w-4" />,
+			onClick: () => handleOpenEditDialog(prompt),
+		},
+	];
 
 	if (isLoading && prompts.length === 0 && !searchTerm) {
 		return (
-			<div className="flex justify-center items-center h-screen">
-				<div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500"></div>
-			</div>
+			<AdminPageLayout>
+				<AdminPageHeader
+					title="이미지 프롬프트 목록"
+					searchPlaceholder="이미지 프롬프트 검색..."
+					searchValue={searchTerm}
+					onSearchChange={handleSearchTermChange}
+					onCreateClick={() => setIsCreateDialogOpen(true)}
+					createButtonText="프롬프트 생성"
+				/>
+				<AdminTable>
+					<AdminTableHeader>
+						<AdminTableHeaderCell className="min-w-[150px]">
+							이름
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="min-w-[200px] max-w-[300px]">
+							프롬프트
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="min-w-[100px]">
+							현재 버전
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="min-w-[120px]">
+							생성자
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="min-w-[150px]">
+							최종 수정일
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="text-right w-[100px]">
+							액션
+						</AdminTableHeaderCell>
+					</AdminTableHeader>
+					<AdminTableBody>
+						<AdminTableLoadingRow colSpan={6} />
+					</AdminTableBody>
+				</AdminTable>
+			</AdminPageLayout>
 		);
 	}
 
 	if (error && prompts.length === 0) {
-		return <div className="text-red-500 text-center p-6">Error: {error}</div>;
+		return (
+			<AdminPageLayout>
+				<div className="text-red-500 text-center p-6">Error: {error}</div>
+			</AdminPageLayout>
+		);
 	}
 
 	return (
-		<div className="container mx-auto p-2">
-			<PromptPageHeader
+		<AdminPageLayout>
+			<AdminPageHeader
+				title="이미지 프롬프트 목록"
 				searchPlaceholder="이미지 프롬프트 검색..."
-				searchTerm={searchTerm}
-				onSearchTermChange={handleSearchTermChange}
+				searchValue={searchTerm}
+				onSearchChange={handleSearchTermChange}
 				onCreateClick={() => setIsCreateDialogOpen(true)}
 				createButtonText="프롬프트 생성"
 			/>
@@ -415,94 +455,79 @@ export default function ImagePromptsPage() {
 				isSubmitting={isSubmitting}
 			/>
 
-			<div className="rounded-md border mt-2">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead className="min-w-[150px]">이름</TableHead>
-							<TableHead className="min-w-[200px] max-w-[300px] truncate">
-								LLM 프롬프트
-							</TableHead>
-							<TableHead className="min-w-[100px]">현재 버전</TableHead>
-							<TableHead className="min-w-[120px]">생성자</TableHead>
-							<TableHead className="min-w-[150px]">최종 수정일</TableHead>
-							<TableHead className="text-right w-[100px]">액션</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading ? (
-							<TableRow>
-								<TableCell colSpan={6} className="h-24 text-center">
-									<div className="flex justify-center items-center">
-										<Loader2 className="mr-2 h-8 w-8 animate-spin" />
-										<span>데이터를 불러오는 중입니다...</span>
+			<AdminTable>
+				<AdminTableHeader>
+					<AdminTableHeaderCell className="min-w-[150px]">
+						이름
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="min-w-[200px] max-w-[300px]">
+						프롬프트
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="min-w-[100px]">
+						현재 버전
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="min-w-[120px]">
+						생성자
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="min-w-[150px]">
+						최종 수정일
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="text-right w-[100px]">
+						액션
+					</AdminTableHeaderCell>
+				</AdminTableHeader>
+				<AdminTableBody>
+					{isLoading ? (
+						<AdminTableLoadingRow colSpan={6} />
+					) : error ? (
+						<AdminTableRow>
+							<AdminTableCell
+								colSpan={6}
+								className="h-24 text-center text-red-500"
+							>
+								{error}
+							</AdminTableCell>
+						</AdminTableRow>
+					) : prompts.length === 0 ? (
+						<AdminTableEmptyRow
+							colSpan={6}
+							message={
+								searchTerm
+									? "검색 결과가 없습니다."
+									: "표시할 프롬프트가 없습니다."
+							}
+						/>
+					) : (
+						prompts.map((prompt) => (
+							<AdminTableRow key={`prompt-${prompt.id}`}>
+								<AdminTableCell className="font-medium">
+									{prompt.name}
+								</AdminTableCell>
+								<AdminTableCell className="max-w-[300px]">
+									<div className="truncate" title={prompt.llm_prompt}>
+										{prompt.llm_prompt || "N/A"}
 									</div>
-								</TableCell>
-							</TableRow>
-						) : error ? (
-							<TableRow>
-								<TableCell
-									colSpan={6}
-									className="h-24 text-center text-red-500"
-								>
-									{error}
-								</TableCell>
-							</TableRow>
-						) : prompts.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={6} className="h-24 text-center">
-									표시할 프롬프트가 없습니다.
-								</TableCell>
-							</TableRow>
-						) : (
-							prompts.slice(startIndex, endIndex).map((prompt) => {
-								return (
-									<TableRow key={`prompt-${prompt.id}`}>
-										<TableCell className="font-medium">{prompt.name}</TableCell>
-										<TableCell className="truncate max-w-[300px]">
-											{prompt.llm_prompt || "N/A"}
-										</TableCell>
-										<TableCell>v{prompt.version}</TableCell>
-										<TableCell>
-											{prompt.created_by || "N/A"}{" "}
-											{/* "사용자 X" 대신 바로 username 표시 */}
-										</TableCell>
-										<TableCell>{formatDate(prompt.updated_at)}</TableCell>
-										<TableCell className="text-right">
-											<DropdownMenu>
-												<DropdownMenuTrigger asChild>
-													<Button variant="ghost" size="icon">
-														<MoreHorizontal className="h-4 w-4" />
-													</Button>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end">
-													<DropdownMenuItem
-														onSelect={() => handleOpenDetailDialog(prompt)}
-													>
-														<Eye className="mr-2 h-4 w-4" />
-														상세보기
-													</DropdownMenuItem>
-													<DropdownMenuItem
-														onSelect={() => handleOpenEditDialog(prompt)}
-													>
-														<Edit className="mr-2 h-4 w-4" />
-														수정
-													</DropdownMenuItem>
-												</DropdownMenuContent>
-											</DropdownMenu>
-										</TableCell>
-									</TableRow>
-								);
-							})
-						)}
-					</TableBody>
-				</Table>
-			</div>
+								</AdminTableCell>
+								<AdminTableCell>
+									<Badge variant="outline">v{prompt.version}</Badge>
+								</AdminTableCell>
+								<AdminTableCell>{prompt.created_by || "N/A"}</AdminTableCell>
+								<AdminTableCell>{formatDate(prompt.updated_at)}</AdminTableCell>
+								<AdminTableCell className="text-right">
+									<ActionDropdown actions={getPromptActions(prompt)} />
+								</AdminTableCell>
+							</AdminTableRow>
+						))
+					)}
+				</AdminTableBody>
+			</AdminTable>
 
 			{totalPrompts > itemsPerPage && (
-				<PaginationControls
+				<AdminPagination
 					currentPage={currentPage}
 					totalPages={Math.ceil(totalPrompts / itemsPerPage)}
+					totalItems={totalPrompts}
+					itemsPerPage={itemsPerPage}
 					onPageChange={handlePageChange}
 				/>
 			)}
@@ -528,7 +553,7 @@ export default function ImagePromptsPage() {
 
 							<div className="grid grid-cols-4 items-start gap-4">
 								<Label className="text-right pt-2 font-medium">
-									LLM 프롬프트
+									프롬프트
 								</Label>
 								<div className="col-span-3 p-3 bg-gray-50 rounded border text-gray-700 min-h-[120px] whitespace-pre-wrap">
 									{selectedPromptForDetail.llm_prompt}
@@ -601,7 +626,7 @@ export default function ImagePromptsPage() {
 							{/* LLM 프롬프트 입력 */}
 							<div className="grid grid-cols-4 items-start gap-4">
 								<Label htmlFor="edit-prompt" className="text-right pt-2">
-									LLM 프롬프트
+									프롬프트
 								</Label>
 								<Textarea
 									id="edit-prompt"
@@ -649,8 +674,7 @@ export default function ImagePromptsPage() {
 																{formatDate(version.created_at)}
 															</span>
 															<span className="text-sm text-muted-foreground">
-																by {version.created_by || "N/A"}{" "}
-																{/* "사용자 X" 제거 */}
+																by {version.created_by || "N/A"}
 															</span>
 														</div>
 														{version.version !==
@@ -689,6 +713,6 @@ export default function ImagePromptsPage() {
 					</DialogContent>
 				</Dialog>
 			)}
-		</div>
+		</AdminPageLayout>
 	);
 }

@@ -88,7 +88,7 @@ export function CreateImagePromptDialog({
 							htmlFor="llm-prompt" // id 변경
 							className="text-right col-span-1 pt-2"
 						>
-							LLM 프롬프트* {/* 라벨 변경 */}
+							프롬프트* {/* 라벨 변경 */}
 						</Label>
 						<Textarea
 							id="llm-prompt" // id 변경
