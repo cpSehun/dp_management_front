@@ -464,9 +464,8 @@ export default function ImagePromptsPage() {
 										</TableCell>
 										<TableCell>v{prompt.version}</TableCell>
 										<TableCell>
-											{prompt.created_by
-												? `사용자 ${prompt.created_by}`
-												: "N/A"}
+											{prompt.created_by || "N/A"}{" "}
+											{/* "사용자 X" 대신 바로 username 표시 */}
 										</TableCell>
 										<TableCell>{formatDate(prompt.updated_at)}</TableCell>
 										<TableCell className="text-right">
@@ -546,9 +545,7 @@ export default function ImagePromptsPage() {
 							<div className="grid grid-cols-4 items-center gap-4">
 								<Label className="text-right font-medium">생성자</Label>
 								<div className="col-span-3 p-2 bg-gray-50 rounded border text-gray-700">
-									{selectedPromptForDetail.created_by
-										? `사용자 ${selectedPromptForDetail.created_by}`
-										: "N/A"}
+									{selectedPromptForDetail.created_by || "N/A"}
 								</div>
 							</div>
 
@@ -652,7 +649,8 @@ export default function ImagePromptsPage() {
 																{formatDate(version.created_at)}
 															</span>
 															<span className="text-sm text-muted-foreground">
-																by 사용자 {version.created_by || "N/A"}
+																by {version.created_by || "N/A"}{" "}
+																{/* "사용자 X" 제거 */}
 															</span>
 														</div>
 														{version.version !==
