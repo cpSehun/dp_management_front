@@ -43,7 +43,6 @@ interface PromptVersion {
 	id: number;
 	content: string;
 	created_at: string;
-	is_active: boolean;
 	version: number;
 }
 
@@ -51,6 +50,7 @@ interface Prompt {
 	id: number;
 	name: string;
 	image_prompt: string;
+	version: number; // 메인 프롬프트의 현재 활성 버전
 	versions: PromptVersion[];
 	tags: string[];
 	created_at: string;
@@ -76,9 +76,6 @@ interface GeneratedImage {
 	modelName: string; // 이미지 생성 시 사용된 모델명
 	is_base64: boolean; // URL이 base64 데이터인지 여부
 }
-
-// 샘플 이미지 프롬프트 제거
-// const sampleImagePrompts: Prompt[] = [...];
 
 export default function ImageGeneratorPage() {
 	const [prompt, setPrompt] = useState("");
@@ -209,17 +206,18 @@ export default function ImageGeneratorPage() {
 					return;
 				}
 
-				const fetchedPrompts: Prompt[] = responseData.items.map((item) => {
+				const fetchedPrompts: Prompt[] = responseData.items.map((item: any) => {
+					console.log("Raw API item:", item); // 실제 데이터 구조 확인
 					return {
 						id: item.id,
 						name: item.name,
-						image_prompt: item.image_prompt,
+						image_prompt: item.llm_prompt, // llm_prompt를 image_prompt로 매핑
+						version: item.version, // 메인 프롬프트의 현재 활성 버전
 						versions: Array.isArray(item.versions)
-							? item.versions.map((v) => ({
+							? item.versions.map((v: any) => ({
 									id: v.id,
 									version: v.version,
-									content: v.content,
-									is_active: v.is_active,
+									content: v.llm_prompt, // llm_prompt를 content로 매핑
 									created_at: v.created_at,
 							  }))
 							: [],
@@ -257,20 +255,21 @@ export default function ImageGeneratorPage() {
 		} else {
 			const lowercasedSearch = imagePromptSearch.toLowerCase();
 			const filtered = imagePrompts.filter((prompt) => {
-				const nameMatch = prompt.name.toLowerCase().includes(lowercasedSearch);
-				const descMatch = prompt.image_prompt
-					.toLowerCase()
-					.includes(lowercasedSearch);
+				const nameMatch =
+					prompt.name?.toLowerCase().includes(lowercasedSearch) || false;
+				const descMatch =
+					prompt.image_prompt?.toLowerCase().includes(lowercasedSearch) ||
+					false;
 				const tagMatch =
 					prompt.tags && Array.isArray(prompt.tags)
 						? prompt.tags.some((tag) =>
-								tag.toLowerCase().includes(lowercasedSearch)
+								tag?.toLowerCase().includes(lowercasedSearch)
 						  )
 						: false;
 				const contentMatch =
 					prompt.versions && Array.isArray(prompt.versions)
 						? prompt.versions.some((version) =>
-								version.content.toLowerCase().includes(lowercasedSearch)
+								version.content?.toLowerCase().includes(lowercasedSearch)
 						  )
 						: false;
 
@@ -287,14 +286,46 @@ export default function ImageGeneratorPage() {
 
 	// 이미지 프롬프트 선택 처리
 	const handleSelectImagePrompt = (promptName: string) => {
+		console.log("프롬프트 선택:", promptName);
 		const prompt = imagePrompts.find((p) => p.name === promptName);
-		if (!prompt) return;
+		if (!prompt) {
+			console.log("프롬프트를 찾을 수 없음:", promptName);
+			return;
+		}
+
+		console.log("선택된 프롬프트 전체:", prompt);
+		console.log("선택된 프롬프트 현재 버전:", prompt.version);
 
 		setSelectedImagePrompt(prompt);
-		// 선택한 프롬프트의 활성 버전 찾기
-		const activeVersion = prompt.versions.find((v) => v.is_active);
-		if (activeVersion) {
-			setPrompt(activeVersion.content);
+
+		// 현재 버전에 해당하는 버전 찾기
+		const currentVersionData = prompt.versions.find(
+			(v) => v.version === prompt.version
+		);
+		console.log("현재 버전 데이터:", currentVersionData);
+
+		if (currentVersionData && currentVersionData.content) {
+			setPrompt(currentVersionData.content);
+			console.log("현재 버전 콘텐츠 설정:", currentVersionData.content);
+		} else if (prompt.image_prompt) {
+			// 현재 버전 데이터가 없으면 메인 프롬프트 사용
+			setPrompt(prompt.image_prompt);
+			console.log("메인 프롬프트 설정:", prompt.image_prompt);
+		}
+
+		// 직접 입력 모드 해제
+		setUseCustomPrompt(false);
+		console.log("직접 입력 모드 해제");
+	};
+
+	// 직접 입력 체크박스 변경 처리
+	const handleUseCustomPromptChange = (checked: boolean) => {
+		setUseCustomPrompt(checked);
+		if (checked) {
+			// 직접 입력 모드 활성화 시 프롬프트 내용 초기화
+			setPrompt("");
+			setSelectedImagePrompt(null);
+			console.log("직접 입력 모드 활성화 - 내용 초기화");
 		}
 	};
 
@@ -704,9 +735,7 @@ export default function ImageGeneratorPage() {
 											<Checkbox
 												id="useCustomPrompt"
 												checked={useCustomPrompt}
-												onCheckedChange={(checked) =>
-													setUseCustomPrompt(!!checked)
-												}
+												onCheckedChange={handleUseCustomPromptChange}
 											/>
 											<Label htmlFor="useCustomPrompt" className="text-sm">
 												직접 입력
@@ -751,10 +780,18 @@ export default function ImageGeneratorPage() {
 															<CommandGroup>
 																<CommandList className="max-h-[300px] overflow-y-auto">
 																	{filteredImagePrompts.map((promptItem) => (
-																		<CommandItem
+																		<div
 																			key={promptItem.id}
-																			value={promptItem.name}
-																			onSelect={handleSelectImagePrompt}
+																			className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-accent hover:text-accent-foreground"
+																			onClick={() => {
+																				console.log(
+																					"div onClick 호출됨:",
+																					promptItem.name
+																				);
+																				handleSelectImagePrompt(
+																					promptItem.name
+																				);
+																			}}
 																		>
 																			<Check
 																				className={cn(
@@ -768,10 +805,16 @@ export default function ImageGeneratorPage() {
 																			<div className="flex flex-col">
 																				<span>{promptItem.name}</span>
 																				<span className="text-xs text-muted-foreground">
-																					{promptItem.image_prompt}
+																					{promptItem.image_prompt?.substring(
+																						0,
+																						100
+																					)}
+																					{promptItem.image_prompt?.length > 100
+																						? "..."
+																						: ""}
 																				</span>
 																			</div>
-																		</CommandItem>
+																		</div>
 																	))}
 																</CommandList>
 															</CommandGroup>
@@ -783,14 +826,13 @@ export default function ImageGeneratorPage() {
 											{selectedImagePrompt && (
 												<div className="border rounded-md p-3 bg-muted/30">
 													<div className="text-sm mb-1 font-medium">
-														{selectedImagePrompt.name}
+														선택된 프롬프트: {selectedImagePrompt.name}
 													</div>
 													<div className="text-xs text-muted-foreground mb-2">
-														{
-															selectedImagePrompt.versions.find(
-																(v) => v.is_active
-															)?.content
-														}
+														{selectedImagePrompt.image_prompt}
+													</div>
+													<div className="text-xs text-gray-500">
+														현재 버전: v{selectedImagePrompt.version || "1"}
 													</div>
 												</div>
 											)}
