@@ -46,6 +46,10 @@ export default function AdminLayout({
 	const [username, setUsername] = useState<string | null>(null);
 	const [isClient, setIsClient] = useState(false);
 
+	// 메뉴 토글 상태 (새로고침 시 초기화됨)
+	const [isPromptsMenuOpen, setIsPromptsMenuOpen] = useState(false);
+	const [isImagesMenuOpen, setIsImagesMenuOpen] = useState(false);
+
 	useEffect(() => {
 		setIsClient(true);
 		if (typeof window !== "undefined") {
@@ -84,14 +88,38 @@ export default function AdminLayout({
 		}
 	}, [router, pathname]);
 
+	// 현재 경로에 따라 메뉴 열림 상태 설정 (페이지 로드 시에만)
+	useEffect(() => {
+		if (pathname.startsWith("/admin/prompts")) {
+			setIsPromptsMenuOpen(true);
+			setIsImagesMenuOpen(false);
+		} else if (pathname.startsWith("/admin/image")) {
+			setIsImagesMenuOpen(true);
+			setIsPromptsMenuOpen(false);
+		}
+	}, [pathname]);
+
 	const handleLogout = () => {
 		localStorage.removeItem("access_token");
 		window.location.href = "/login";
 	};
 
-	// 현재 경로에 따라 해당 메뉴가 열려있는지 확인하는 함수
-	const isMenuOpen = (menuPath: string) => {
-		return pathname.startsWith(menuPath);
+	// Prompts 메뉴 토글
+	const handlePromptsMenuToggle = () => {
+		setIsPromptsMenuOpen(!isPromptsMenuOpen);
+		// 다른 메뉴는 닫기
+		if (!isPromptsMenuOpen) {
+			setIsImagesMenuOpen(false);
+		}
+	};
+
+	// Images 메뉴 토글
+	const handleImagesMenuToggle = () => {
+		setIsImagesMenuOpen(!isImagesMenuOpen);
+		// 다른 메뉴는 닫기
+		if (!isImagesMenuOpen) {
+			setIsPromptsMenuOpen(false);
+		}
 	};
 
 	return (
@@ -106,10 +134,6 @@ export default function AdminLayout({
 							<TerminalSquare className="h-6 w-6" />
 							<span className="">Daepa Admin</span>
 						</Link>
-						{/* <Button variant="outline" size="icon" className="ml-auto h-8 w-8">
-              <Bell className="h-4 w-4" />
-              <span className="sr-only">Toggle notifications</span>
-            </Button> */}
 					</div>
 					<div className="flex-1">
 						<nav className="grid items-start px-2 text-sm font-medium lg:px-4">
@@ -134,28 +158,26 @@ export default function AdminLayout({
 
 							{/* 프롬프트 아코디언 서브메뉴 */}
 							<div className="flex flex-col">
-								<div
+								<button
+									onClick={handlePromptsMenuToggle}
 									className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
 										pathname.startsWith("/admin/prompts")
 											? "bg-muted text-primary"
 											: ""
 									}`}
 								>
-									<Link
-										href="/admin/prompts/image"
-										className="flex items-center gap-3"
-									>
+									<div className="flex items-center gap-3">
 										<TerminalSquare className="h-4 w-4" />
 										<span>Prompts</span>
-									</Link>
-									{isMenuOpen("/admin/prompts") ? (
+									</div>
+									{isPromptsMenuOpen ? (
 										<ChevronUp className="h-4 w-4" />
 									) : (
 										<ChevronDown className="h-4 w-4" />
 									)}
-								</div>
+								</button>
 
-								{isMenuOpen("/admin/prompts") && (
+								{isPromptsMenuOpen && (
 									<div className="ml-7 mt-1 border-l border-gray-200 pl-3 flex flex-col gap-1">
 										<Link
 											href="/admin/prompts/image"
@@ -183,25 +205,26 @@ export default function AdminLayout({
 
 							{/* 이미지 아코디언 서브메뉴 */}
 							<div className="flex flex-col">
-								<div
+								<button
+									onClick={handleImagesMenuToggle}
 									className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
 										pathname.startsWith("/admin/image")
 											? "bg-muted text-primary"
 											: ""
 									}`}
 								>
-									<Link href="/admin/image" className="flex items-center gap-3">
+									<div className="flex items-center gap-3">
 										<Image className="h-4 w-4" />
 										<span>Images</span>
-									</Link>
-									{isMenuOpen("/admin/image") ? (
+									</div>
+									{isImagesMenuOpen ? (
 										<ChevronUp className="h-4 w-4" />
 									) : (
 										<ChevronDown className="h-4 w-4" />
 									)}
-								</div>
+								</button>
 
-								{isMenuOpen("/admin/image") && (
+								{isImagesMenuOpen && (
 									<div className="ml-7 mt-1 border-l border-gray-200 pl-3 flex flex-col gap-1">
 										<Link
 											href="/admin/image/list"
