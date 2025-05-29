@@ -31,17 +31,12 @@ export default function ApprovalPendingPage() {
 								<Shield className="h-4 w-4 text-slate-400" />
 								<span>관리자가 계정을 검토 중입니다</span>
 							</div>
-							<div className="flex items-center gap-3 text-sm text-slate-600">
-								<Mail className="h-4 w-4 text-slate-400" />
-								<span>승인 완료 시 알림을 받으실 수 있습니다</span>
-							</div>
 						</div>
 
 						<div className="text-xs text-slate-500 bg-blue-50 p-3 rounded border-l-4 border-blue-200">
 							<p className="font-medium text-blue-800 mb-1">안내사항</p>
 							<p className="text-blue-700">
-								승인 과정은 보통 1-2일 정도 소요됩니다. 급한 경우 관리자에게
-								직접 문의해 주세요.
+								급한 경우 ES팀에 직접 문의해 주세요.
 							</p>
 						</div>
 					</div>
