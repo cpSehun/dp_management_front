@@ -605,40 +605,6 @@ export default function AdminUsersPage() {
 				showCreateButton={false}
 			/>
 
-			{/* 현재 로그인 사용자 정보 표시 */}
-			{currentUser && (
-				<div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-					<div className="flex items-center justify-between">
-						<div className="text-sm text-blue-800">
-							<span className="font-medium">현재 로그인:</span>{" "}
-							{currentUser.username} ({currentUser.email})
-						</div>
-						<div className="flex items-center gap-2">
-							<Badge
-								variant={currentUser.is_active ? "default" : "destructive"}
-								className={
-									currentUser.is_active
-										? "bg-green-100 text-green-800"
-										: "bg-red-100 text-red-800"
-								}
-							>
-								{currentUser.is_active ? "활성" : "비활성"}
-							</Badge>
-							<Badge
-								variant={currentUser.is_superuser ? "secondary" : "outline"}
-								className={
-									currentUser.is_superuser
-										? "bg-blue-100 text-blue-800"
-										: "bg-gray-100 text-gray-800"
-								}
-							>
-								{currentUser.is_superuser ? "최고관리자" : "일반사용자"}
-							</Badge>
-						</div>
-					</div>
-				</div>
-			)}
-
 			{/* 필터 탭 추가 */}
 			<Tabs
 				value={activeFilter}
