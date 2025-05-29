@@ -200,83 +200,144 @@ export default function PersonaPage() {
 				createButtonText="페르소나 생성"
 			/>
 
-			<AdminTable>
-				<AdminTableHeader>
-					<AdminTableHeaderCell>이름</AdminTableHeaderCell>
-					<AdminTableHeaderCell>나이대</AdminTableHeaderCell>
-					<AdminTableHeaderCell>성별</AdminTableHeaderCell>
-					<AdminTableHeaderCell>성격</AdminTableHeaderCell>
-					<AdminTableHeaderCell>상태메시지</AdminTableHeaderCell>
-					<AdminTableHeaderCell>태그</AdminTableHeaderCell>
-					<AdminTableHeaderCell>이미지</AdminTableHeaderCell>
-					<AdminTableHeaderCell>페르소나 프롬프트</AdminTableHeaderCell>
-					<AdminTableHeaderCell>생성일</AdminTableHeaderCell>
-					<AdminTableHeaderCell className="text-right">
-						관리
-					</AdminTableHeaderCell>
-				</AdminTableHeader>
-				<AdminTableBody>
-					{isLoading ? (
-						<AdminTableLoadingRow colSpan={10} />
-					) : paginatedPersonas.length === 0 ? (
-						<AdminTableEmptyRow colSpan={10} message="검색 결과가 없습니다." />
-					) : (
-						paginatedPersonas.map((persona) => (
-							<AdminTableRow key={persona.id}>
-								<AdminTableCell className="font-medium">
-									{persona.name}
-								</AdminTableCell>
-								<AdminTableCell>{persona.ageGroup}</AdminTableCell>
-								<AdminTableCell>{persona.gender}</AdminTableCell>
-								<AdminTableCell>{persona.personality}</AdminTableCell>
-								<AdminTableCell className="max-w-xs">
-									<div className="truncate" title={persona.statusMessage}>
-										{persona.statusMessage}
-									</div>
-								</AdminTableCell>
-								<AdminTableCell>
-									<div className="flex flex-wrap gap-1">
-										{persona.tags.slice(0, 2).map((tag) => (
-											<Badge key={tag} variant="outline" className="text-xs">
-												{tag}
-											</Badge>
-										))}
-										{persona.tags.length > 2 && (
-											<Badge variant="secondary" className="text-xs">
-												+{persona.tags.length - 2}
-											</Badge>
-										)}
-									</div>
-								</AdminTableCell>
-								<AdminTableCell>
-									<div className="flex justify-center">
-										{persona.imagePrompt ? (
-											<div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-												<div className="w-2 h-2 bg-green-500 rounded-full"></div>
+			{/* 로딩 상태를 위한 독립적인 컴포넌트 사용 */}
+			{isLoading ? (
+				<div className="overflow-hidden bg-white shadow-sm ring-1 ring-slate-200 md:rounded-xl">
+					<div className="overflow-x-auto">
+						<table className="min-w-full divide-y divide-slate-200">
+							<thead className="bg-slate-50/75">
+								<tr>
+									<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
+										이름
+									</th>
+									<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
+										나이대
+									</th>
+									<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
+										성별
+									</th>
+									<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
+										성격
+									</th>
+									<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
+										상태메시지
+									</th>
+									<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
+										태그
+									</th>
+									<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
+										이미지
+									</th>
+									<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
+										페르소나 프롬프트
+									</th>
+									<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
+										생성일
+									</th>
+									<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider text-right">
+										관리
+									</th>
+								</tr>
+							</thead>
+							<tbody className="divide-y divide-slate-200 bg-white">
+								<tr className="hover:bg-slate-50/50 transition-colors duration-200">
+									<td colSpan={10} className="px-6 py-12 text-center">
+										<div className="flex items-center justify-center">
+											<div className="flex items-center space-x-3">
+												<div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-900"></div>
+												<span className="text-sm text-slate-600 font-medium">
+													데이터를 불러오는 중입니다...
+												</span>
 											</div>
+										</div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+			) : (
+				<AdminTable>
+					<AdminTableHeader>
+						<AdminTableHeaderCell>이름</AdminTableHeaderCell>
+						<AdminTableHeaderCell>나이대</AdminTableHeaderCell>
+						<AdminTableHeaderCell>성별</AdminTableHeaderCell>
+						<AdminTableHeaderCell>성격</AdminTableHeaderCell>
+						<AdminTableHeaderCell>상태메시지</AdminTableHeaderCell>
+						<AdminTableHeaderCell>태그</AdminTableHeaderCell>
+						<AdminTableHeaderCell>이미지</AdminTableHeaderCell>
+						<AdminTableHeaderCell>페르소나 프롬프트</AdminTableHeaderCell>
+						<AdminTableHeaderCell>생성일</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="text-right">
+							관리
+						</AdminTableHeaderCell>
+					</AdminTableHeader>
+					<AdminTableBody>
+						{paginatedPersonas.length === 0 ? (
+							<AdminTableEmptyRow
+								colSpan={10}
+								message="검색 결과가 없습니다."
+							/>
+						) : (
+							paginatedPersonas.map((persona) => (
+								<AdminTableRow key={persona.id}>
+									<AdminTableCell className="font-medium">
+										{persona.name}
+									</AdminTableCell>
+									<AdminTableCell>{persona.ageGroup}</AdminTableCell>
+									<AdminTableCell>{persona.gender}</AdminTableCell>
+									<AdminTableCell>{persona.personality}</AdminTableCell>
+									<AdminTableCell className="max-w-xs">
+										<div className="truncate" title={persona.statusMessage}>
+											{persona.statusMessage}
+										</div>
+									</AdminTableCell>
+									<AdminTableCell>
+										<div className="flex flex-wrap gap-1">
+											{persona.tags.slice(0, 2).map((tag) => (
+												<Badge key={tag} variant="outline" className="text-xs">
+													{tag}
+												</Badge>
+											))}
+											{persona.tags.length > 2 && (
+												<Badge variant="secondary" className="text-xs">
+													+{persona.tags.length - 2}
+												</Badge>
+											)}
+										</div>
+									</AdminTableCell>
+									<AdminTableCell>
+										<div className="flex justify-center">
+											{persona.imagePrompt ? (
+												<div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+													<div className="w-2 h-2 bg-green-500 rounded-full"></div>
+												</div>
+											) : (
+												<span className="text-gray-400 text-xs">없음</span>
+											)}
+										</div>
+									</AdminTableCell>
+									<AdminTableCell>
+										{persona.personalityPrompt ? (
+											<Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200">
+												설정됨
+											</Badge>
 										) : (
 											<span className="text-gray-400 text-xs">없음</span>
 										)}
-									</div>
-								</AdminTableCell>
-								<AdminTableCell>
-									{persona.personalityPrompt ? (
-										<Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200">
-											설정됨
-										</Badge>
-									) : (
-										<span className="text-gray-400 text-xs">없음</span>
-									)}
-								</AdminTableCell>
-								<AdminTableCell>{formatDate(persona.createdAt)}</AdminTableCell>
-								<AdminTableCell className="text-right">
-									<ActionDropdown actions={getPersonaActions(persona)} />
-								</AdminTableCell>
-							</AdminTableRow>
-						))
-					)}
-				</AdminTableBody>
-			</AdminTable>
+									</AdminTableCell>
+									<AdminTableCell>
+										{formatDate(persona.createdAt)}
+									</AdminTableCell>
+									<AdminTableCell className="text-right">
+										<ActionDropdown actions={getPersonaActions(persona)} />
+									</AdminTableCell>
+								</AdminTableRow>
+							))
+						)}
+					</AdminTableBody>
+				</AdminTable>
+			)}
 
 			<AdminPagination
 				currentPage={currentPage}

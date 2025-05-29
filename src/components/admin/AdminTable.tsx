@@ -115,7 +115,7 @@ export function AdminTableCell({
 	);
 }
 
-// 로딩 상태를 위한 테이블 행
+// 로딩 상태를 위한 테이블 행 (테이블 구조 내에서 사용)
 interface AdminTableLoadingRowProps {
 	colSpan: number;
 	message?: string;
@@ -179,5 +179,39 @@ export function AdminTableEmptyRow({
 				</div>
 			</td>
 		</tr>
+	);
+}
+
+// 로딩 상태를 위한 독립적인 컴포넌트
+interface AdminTableLoadingProps {
+	colSpan: number;
+	message?: string;
+}
+
+export function AdminTableLoading({
+	colSpan,
+	message = "데이터를 불러오는 중입니다...",
+}: AdminTableLoadingProps) {
+	return (
+		<div className="overflow-hidden bg-white shadow-sm ring-1 ring-slate-200 md:rounded-xl">
+			<div className="overflow-x-auto">
+				<table className="min-w-full divide-y divide-slate-200">
+					<tbody className="divide-y divide-slate-200 bg-white">
+						<tr className="hover:bg-slate-50/50 transition-colors duration-200">
+							<td colSpan={colSpan} className="px-6 py-12 text-center">
+								<div className="flex items-center justify-center">
+									<div className="flex items-center space-x-3">
+										<div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-900"></div>
+										<span className="text-sm text-slate-600 font-medium">
+											{message}
+										</span>
+									</div>
+								</div>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
 	);
 }
