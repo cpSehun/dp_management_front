@@ -72,7 +72,6 @@ export default function AdminUsersPage() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const router = useRouter();
-	// const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false); // 제거
 
 	// 현재 사용자 정보 상태 추가
 	const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -89,22 +88,11 @@ export default function AdminUsersPage() {
 		"all" | "active" | "inactive" | "superuser"
 	>("all");
 
-	// 사용자 추가 관련 상태 및 함수 제거
-	// const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
-	// const [newUserName, setNewUserName] = useState("");
-	// const [newUserEmail, setNewUserEmail] = useState("");
-	// const [newUserRole, setNewUserRole] = useState<string | undefined>(undefined);
-
 	// 사용자 상세보기/수정 상태
 	const [selectedUser, setSelectedUser] = useState<User | null>(null);
 	const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-	// 기존 다이얼로그 관련 상태들 제거 (토글 방식으로 변경했으므로)
-	// const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
-	// const [selectedUserForStatus, setSelectedUserForStatus] = useState<User | null>(null);
-	// const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
-	// const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	// 현재 사용자 정보 확인
@@ -253,30 +241,6 @@ export default function AdminUsersPage() {
 		fetchUsers();
 	}, [router]);
 
-	// 사용자 추가 함수 제거
-	// const handleAddUser = () => {
-	// 	if (!newUserName || !newUserEmail || !newUserRole) {
-	// 		alert("모든 필드를 입력해주세요.");
-	// 		return;
-	// 	}
-	// 	const newUser: User = {
-	// 		id: users.length + 1,
-	// 		username: newUserName,
-	// 		email: newUserEmail,
-	// 		full_name: newUserName,
-	// 		is_active: true,
-	// 		is_superuser: newUserRole === "Admin",
-	// 		created_at: new Date().toISOString(),
-	// 		updated_at: null,
-	// 	};
-	// 	setUsers([...users, newUser]);
-
-	// 	setNewUserName("");
-	// 	setNewUserEmail("");
-	// 	setNewUserRole(undefined);
-	// 	setIsAddUserDialogOpen(false);
-	// };
-
 	// 페이지 변경 핸들러
 	const handlePageChange = (page: number) => {
 		setCurrentPage(page);
@@ -306,18 +270,47 @@ export default function AdminUsersPage() {
 		setIsDeleteDialogOpen(true);
 	};
 
-	// 사용자 삭제 실행
-	const handleConfirmDelete = () => {
-		if (selectedUser) {
+	// 사용자 삭제 실행 (실제 API 호출) - 수정된 부분
+	const handleConfirmDelete = async () => {
+		if (!selectedUser) return;
+
+		setIsSubmitting(true);
+		try {
+			const token = localStorage.getItem("access_token");
+			if (!token) throw new Error("Access token not found.");
+
+			const response = await fetchAPI(`/api/v1/users/${selectedUser.id}`, {
+				method: "DELETE",
+				headers: { Authorization: `Bearer ${token}` },
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.detail || "사용자 삭제에 실패했습니다.");
+			}
+
+			// 삭제 성공 시 로컬 상태에서도 제거
 			setUsers(users.filter((u) => u.id !== selectedUser.id));
+
+			// 다이얼로그 닫기
 			setIsDeleteDialogOpen(false);
 			setSelectedUser(null);
+
+			// 성공 메시지 표시
+			toast.success(
+				`사용자 '${selectedUser.username}'이(가) 성공적으로 삭제되었습니다.`
+			);
+		} catch (error) {
+			console.error("사용자 삭제 오류:", error);
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "사용자 삭제 중 오류가 발생했습니다."
+			);
+		} finally {
+			setIsSubmitting(false);
 		}
 	};
-
-	// 기존 다이얼로그 함수들 제거 (토글 방식으로 변경)
-	// const handleOpenStatusDialog = (user: User) => { ... }
-	// const handleOpenRoleDialog = (user: User) => { ... }
 
 	// 사용자 상태 변경 (확인 없이 직접 토글)
 	const handleUpdateUserStatus = async (userId: number, isActive: boolean) => {
@@ -568,9 +561,7 @@ export default function AdminUsersPage() {
 					searchPlaceholder="사용자명, 이메일 검색..."
 					searchValue={searchTerm}
 					onSearchChange={setSearchTerm}
-					onCreateClick={() => setIsAddUserDialogOpen(true)}
-					createButtonText="사용자 추가"
-					showCreateButton={isCurrentUserSuperuser}
+					showCreateButton={false}
 				/>
 				<AdminTable>
 					<AdminTableHeader>
@@ -702,79 +693,6 @@ export default function AdminUsersPage() {
 				onPageChange={handlePageChange}
 			/>
 
-			{/* 사용자 추가 다이얼로그 제거 */}
-			{/* <Dialog
-				open={isAddUserDialogOpen}
-				onOpenChange={(isOpen) => {
-					setIsAddUserDialogOpen(isOpen);
-					if (!isOpen) {
-						setNewUserName("");
-						setNewUserEmail("");
-						setNewUserRole(undefined);
-					}
-				}}
-			>
-				<DialogContent className="sm:max-w-[425px]">
-					<DialogHeader>
-						<DialogTitle>새 사용자 추가</DialogTitle>
-						<DialogDescription>
-							새로운 사용자의 정보를 입력하세요. 완료하면 저장을 클릭하세요.
-						</DialogDescription>
-					</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="name" className="text-right">
-								이름
-							</Label>
-							<Input
-								id="name"
-								placeholder="홍길동"
-								className="col-span-3"
-								value={newUserName}
-								onChange={(e) => setNewUserName(e.target.value)}
-							/>
-						</div>
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="email" className="text-right">
-								이메일
-							</Label>
-							<Input
-								id="email"
-								type="email"
-								placeholder="hong@example.com"
-								className="col-span-3"
-								value={newUserEmail}
-								onChange={(e) => setNewUserEmail(e.target.value)}
-							/>
-						</div>
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="role" className="text-right">
-								역할
-							</Label>
-							<Select value={newUserRole} onValueChange={setNewUserRole}>
-								<SelectTrigger className="col-span-3">
-									<SelectValue placeholder="역할을 선택하세요" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="Admin">관리자</SelectItem>
-									<SelectItem value="User">사용자</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-					</div>
-					<DialogFooter>
-						<DialogClose asChild>
-							<Button type="button" variant="outline">
-								취소
-							</Button>
-						</DialogClose>
-						<Button type="button" onClick={handleAddUser}>
-							사용자 저장
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog> */}
-
 			{/* 사용자 상세보기 다이얼로그 */}
 			{selectedUser && (
 				<Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
@@ -862,7 +780,7 @@ export default function AdminUsersPage() {
 				</Dialog>
 			)}
 
-			{/* 삭제 확인 다이얼로그 */}
+			{/* 삭제 확인 다이얼로그 - 수정된 부분 */}
 			<Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
 				<DialogContent className="sm:max-w-[425px]">
 					<DialogHeader>
@@ -876,19 +794,20 @@ export default function AdminUsersPage() {
 						<Button
 							variant="outline"
 							onClick={() => setIsDeleteDialogOpen(false)}
+							disabled={isSubmitting}
 						>
 							취소
 						</Button>
-						<Button variant="destructive" onClick={handleConfirmDelete}>
-							삭제
+						<Button
+							variant="destructive"
+							onClick={handleConfirmDelete}
+							disabled={isSubmitting}
+						>
+							{isSubmitting ? "삭제 중..." : "삭제"}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-
-			{/* 기존 상태/권한 변경 다이얼로그들 제거 (토글 방식으로 변경) */}
-			{/* 상태 변경 확인 모달 제거 */}
-			{/* 권한 변경 확인 모달 제거 */}
 		</AdminPageLayout>
 	);
 }
