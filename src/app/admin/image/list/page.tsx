@@ -58,6 +58,34 @@ export default function ImageListPage() {
 		};
 	}, [searchTerm]);
 
+	// 현재 사용자 정보 상태 추가
+	const [currentUser, setCurrentUser] = useState<any>(null);
+	const [isCurrentUserSuperuser, setIsCurrentUserSuperuser] = useState(false);
+
+	// 현재 사용자 정보 확인
+	useEffect(() => {
+		const checkCurrentUser = async () => {
+			try {
+				const token = localStorage.getItem("access_token");
+				if (!token) return;
+
+				const response = await fetch("/api/v1/users/me", {
+					headers: { Authorization: `Bearer ${token}` },
+				});
+
+				if (response.ok) {
+					const userData = await response.json();
+					setCurrentUser(userData);
+					setIsCurrentUserSuperuser(userData.is_superuser || false);
+				}
+			} catch (error) {
+				console.error("현재 사용자 정보 조회 실패:", error);
+			}
+		};
+
+		checkCurrentUser();
+	}, []);
+
 	// 이미지 목록 조회 함수
 	const fetchImages = useCallback(
 		async (page: number, currentSearchTerm?: string) => {

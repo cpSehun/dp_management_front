@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit, Trash2, Eye } from "lucide-react";
+import {
+	Edit,
+	Trash2,
+	Eye,
+	UserCheck,
+	UserX,
+	Shield,
+	ShieldCheck,
+} from "lucide-react";
 import {
 	Dialog,
 	DialogContent,
@@ -24,6 +32,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
@@ -39,6 +48,7 @@ import {
 import { ActionDropdown, ActionItem } from "@/components/admin/ActionDropdown";
 import { AdminPagination } from "@/components/admin/AdminPagination";
 import { fetchAPI } from "@/utils/api";
+import { toast } from "sonner";
 
 console.log("--- AdminUsersPage.tsx SERVER-SIDE LOG (file top) ---");
 
@@ -62,7 +72,11 @@ export default function AdminUsersPage() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const router = useRouter();
-	const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+	// const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false); // 제거
+
+	// 현재 사용자 정보 상태 추가
+	const [currentUser, setCurrentUser] = useState<User | null>(null);
+	const [isCurrentUserSuperuser, setIsCurrentUserSuperuser] = useState(false);
 
 	// 검색 및 페이지네이션 상태
 	const [searchTerm, setSearchTerm] = useState("");
@@ -70,23 +84,69 @@ export default function AdminUsersPage() {
 	const [currentPage, setCurrentPage] = useState(1);
 	const [paginatedUsers, setPaginatedUsers] = useState<User[]>([]);
 
-	// 사용자 추가 폼 상태
-	const [newUserName, setNewUserName] = useState("");
-	const [newUserEmail, setNewUserEmail] = useState("");
-	const [newUserRole, setNewUserRole] = useState<string | undefined>(undefined);
+	// 필터 상태 추가
+	const [activeFilter, setActiveFilter] = useState<
+		"all" | "active" | "inactive" | "superuser"
+	>("all");
+
+	// 사용자 추가 관련 상태 및 함수 제거
+	// const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+	// const [newUserName, setNewUserName] = useState("");
+	// const [newUserEmail, setNewUserEmail] = useState("");
+	// const [newUserRole, setNewUserRole] = useState<string | undefined>(undefined);
 
 	// 사용자 상세보기/수정 상태
 	const [selectedUser, setSelectedUser] = useState<User | null>(null);
 	const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-	// 검색 기능
+	// 기존 다이얼로그 관련 상태들 제거 (토글 방식으로 변경했으므로)
+	// const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+	// const [selectedUserForStatus, setSelectedUserForStatus] = useState<User | null>(null);
+	// const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
+	// const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(null);
+	const [isSubmitting, setIsSubmitting] = useState(false);
+
+	// 현재 사용자 정보 확인
 	useEffect(() => {
-		if (!searchTerm || searchTerm.trim() === "") {
-			setFilteredUsers([...users]);
-		} else {
+		const checkCurrentUser = async () => {
+			try {
+				const token = localStorage.getItem("access_token");
+				if (!token) return;
+
+				console.log("현재 사용자 정보 요청 중...");
+				const response = await fetchAPI("/api/v1/users/me", {
+					headers: { Authorization: `Bearer ${token}` },
+				});
+
+				if (response.ok) {
+					const userData = await response.json();
+					console.log("현재 사용자 정보:", userData);
+					setCurrentUser(userData);
+					setIsCurrentUserSuperuser(userData.is_superuser || false);
+				} else {
+					console.error(
+						"현재 사용자 정보 조회 실패:",
+						response.status,
+						response.statusText
+					);
+				}
+			} catch (error) {
+				console.error("현재 사용자 정보 조회 실패:", error);
+			}
+		};
+
+		checkCurrentUser();
+	}, []);
+
+	// 필터링 로직 수정
+	useEffect(() => {
+		let filtered = [...users];
+
+		// 검색 필터 적용
+		if (searchTerm && searchTerm.trim() !== "") {
 			const lowercasedSearch = searchTerm.toLowerCase();
-			const filtered = users.filter((user) => {
+			filtered = filtered.filter((user) => {
 				return (
 					user.username.toLowerCase().includes(lowercasedSearch) ||
 					user.email.toLowerCase().includes(lowercasedSearch) ||
@@ -94,10 +154,26 @@ export default function AdminUsersPage() {
 						user.full_name.toLowerCase().includes(lowercasedSearch))
 				);
 			});
-			setFilteredUsers(filtered);
 		}
+
+		// 상태 필터 적용
+		switch (activeFilter) {
+			case "active":
+				filtered = filtered.filter((user) => user.is_active);
+				break;
+			case "inactive":
+				filtered = filtered.filter((user) => !user.is_active);
+				break;
+			case "superuser":
+				filtered = filtered.filter((user) => user.is_superuser);
+				break;
+			default:
+				break;
+		}
+
+		setFilteredUsers(filtered);
 		setCurrentPage(1);
-	}, [searchTerm, users]);
+	}, [searchTerm, users, activeFilter]);
 
 	// 페이지네이션 처리
 	useEffect(() => {
@@ -177,28 +253,29 @@ export default function AdminUsersPage() {
 		fetchUsers();
 	}, [router]);
 
-	const handleAddUser = () => {
-		if (!newUserName || !newUserEmail || !newUserRole) {
-			alert("모든 필드를 입력해주세요.");
-			return;
-		}
-		const newUser: User = {
-			id: users.length + 1,
-			username: newUserName,
-			email: newUserEmail,
-			full_name: newUserName,
-			is_active: true,
-			is_superuser: newUserRole === "Admin",
-			created_at: new Date().toISOString(),
-			updated_at: null,
-		};
-		setUsers([...users, newUser]);
+	// 사용자 추가 함수 제거
+	// const handleAddUser = () => {
+	// 	if (!newUserName || !newUserEmail || !newUserRole) {
+	// 		alert("모든 필드를 입력해주세요.");
+	// 		return;
+	// 	}
+	// 	const newUser: User = {
+	// 		id: users.length + 1,
+	// 		username: newUserName,
+	// 		email: newUserEmail,
+	// 		full_name: newUserName,
+	// 		is_active: true,
+	// 		is_superuser: newUserRole === "Admin",
+	// 		created_at: new Date().toISOString(),
+	// 		updated_at: null,
+	// 	};
+	// 	setUsers([...users, newUser]);
 
-		setNewUserName("");
-		setNewUserEmail("");
-		setNewUserRole(undefined);
-		setIsAddUserDialogOpen(false);
-	};
+	// 	setNewUserName("");
+	// 	setNewUserEmail("");
+	// 	setNewUserRole(undefined);
+	// 	setIsAddUserDialogOpen(false);
+	// };
 
 	// 페이지 변경 핸들러
 	const handlePageChange = (page: number) => {
@@ -219,8 +296,12 @@ export default function AdminUsersPage() {
 		alert(`${user.username} 수정 기능은 준비 중입니다.`);
 	};
 
-	// 사용자 삭제 확인
+	// 사용자 삭제 확인 (최고관리자만)
 	const handleDeleteUser = (user: User) => {
+		if (!isCurrentUserSuperuser) {
+			toast.error("최고관리자만 사용자를 삭제할 수 있습니다.");
+			return;
+		}
 		setSelectedUser(user);
 		setIsDeleteDialogOpen(true);
 	};
@@ -234,6 +315,128 @@ export default function AdminUsersPage() {
 		}
 	};
 
+	// 기존 다이얼로그 함수들 제거 (토글 방식으로 변경)
+	// const handleOpenStatusDialog = (user: User) => { ... }
+	// const handleOpenRoleDialog = (user: User) => { ... }
+
+	// 사용자 상태 변경 (확인 없이 직접 토글)
+	const handleUpdateUserStatus = async (userId: number, isActive: boolean) => {
+		if (!isCurrentUserSuperuser) {
+			toast.error("최고관리자만 사용자 상태를 변경할 수 있습니다.");
+			return;
+		}
+
+		// 본인 계정 체크
+		if (currentUser && userId === currentUser.id) {
+			toast.error("본인 계정의 상태는 변경할 수 없습니다.");
+			return;
+		}
+
+		setIsSubmitting(true);
+		try {
+			const token = localStorage.getItem("access_token");
+			if (!token) throw new Error("Access token not found.");
+
+			const response = await fetchAPI(
+				`/api/v1/users/${userId}/status?is_active=${isActive}`,
+				{
+					method: "PUT",
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.detail || "사용자 상태 변경에 실패했습니다.");
+			}
+
+			// 로컬 상태 업데이트
+			setUsers(
+				users.map((user) =>
+					user.id === userId
+						? {
+								...user,
+								is_active: isActive,
+								updated_at: new Date().toISOString(),
+						  }
+						: user
+				)
+			);
+
+			toast.success(`사용자가 ${isActive ? "활성화" : "비활성화"}되었습니다.`);
+		} catch (error) {
+			console.error("사용자 상태 변경 오류:", error);
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "사용자 상태 변경 중 오류가 발생했습니다."
+			);
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	// 사용자 권한 변경 (확인 없이 직접 토글)
+	const handleUpdateUserRole = async (userId: number, isSuperuser: boolean) => {
+		if (!isCurrentUserSuperuser) {
+			toast.error("최고관리자만 사용자 권한을 변경할 수 있습니다.");
+			return;
+		}
+
+		// 본인 계정 체크
+		if (currentUser && userId === currentUser.id) {
+			toast.error("본인 계정의 권한은 변경할 수 없습니다.");
+			return;
+		}
+
+		setIsSubmitting(true);
+		try {
+			const token = localStorage.getItem("access_token");
+			if (!token) throw new Error("Access token not found.");
+
+			const response = await fetchAPI(
+				`/api/v1/users/${userId}/role?is_superuser=${isSuperuser}`,
+				{
+					method: "PUT",
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.detail || "사용자 권한 변경에 실패했습니다.");
+			}
+
+			// 로컬 상태 업데이트
+			setUsers(
+				users.map((user) =>
+					user.id === userId
+						? {
+								...user,
+								is_superuser: isSuperuser,
+								updated_at: new Date().toISOString(),
+						  }
+						: user
+				)
+			);
+
+			toast.success(
+				`사용자 권한이 ${
+					isSuperuser ? "최고관리자" : "일반사용자"
+				}로 변경되었습니다.`
+			);
+		} catch (error) {
+			console.error("사용자 권한 변경 오류:", error);
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "사용자 권한 변경 중 오류가 발생했습니다."
+			);
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
 	// 날짜 포맷팅
 	const formatDate = (dateString: string) => {
 		const date = new Date(dateString);
@@ -243,25 +446,80 @@ export default function AdminUsersPage() {
 		)}-${String(date.getDate()).padStart(2, "0")}`;
 	};
 
-	// 각 사용자의 액션 메뉴 생성
-	const getUserActions = (user: User): ActionItem[] => [
-		{
-			label: "상세보기",
-			icon: <Eye className="h-4 w-4" />,
-			onClick: () => handleViewUser(user),
-		},
-		{
-			label: "수정",
-			icon: <Edit className="h-4 w-4" />,
-			onClick: () => handleEditUser(user),
-		},
-		{
-			label: "삭제",
-			icon: <Trash2 className="h-4 w-4" />,
-			variant: "destructive",
-			onClick: () => handleDeleteUser(user),
-		},
-	];
+	// 각 사용자의 액션 메뉴 생성 (권한에 따라 다르게)
+	const getUserActions = (user: User): ActionItem[] => {
+		const actions: ActionItem[] = [
+			{
+				label: "상세보기",
+				icon: <Eye className="h-4 w-4" />,
+				onClick: () => handleViewUser(user),
+			},
+		];
+
+		// 최고관리자만 관리 기능 사용 가능
+		if (isCurrentUserSuperuser) {
+			// 본인이 아닌 경우에만 상태/권한 변경 가능
+			if (currentUser && user.id !== currentUser.id) {
+				actions.push({
+					label: user.is_active ? "비활성화" : "활성화",
+					icon: user.is_active ? (
+						<UserX className="h-4 w-4" />
+					) : (
+						<UserCheck className="h-4 w-4" />
+					),
+					onClick: () => {
+						// 직접 상태 변경 (토글 방식)
+						handleUpdateUserStatus(user.id, !user.is_active);
+					},
+				});
+
+				actions.push({
+					label: user.is_superuser ? "일반사용자로 변경" : "최고관리자로 변경",
+					icon: user.is_superuser ? (
+						<Shield className="h-4 w-4" />
+					) : (
+						<ShieldCheck className="h-4 w-4" />
+					),
+					onClick: () => {
+						// 직접 권한 변경 (토글 방식)
+						handleUpdateUserRole(user.id, !user.is_superuser);
+					},
+				});
+			}
+
+			// 기존 수정/삭제 기능 (본인이 아닌 경우에만)
+			if (currentUser && user.id !== currentUser.id) {
+				actions.push({
+					label: "수정",
+					icon: <Edit className="h-4 w-4" />,
+					onClick: () => handleEditUser(user),
+				});
+
+				actions.push({
+					label: "삭제",
+					icon: <Trash2 className="h-4 w-4" />,
+					variant: "destructive",
+					onClick: () => handleDeleteUser(user),
+				});
+			}
+		} else {
+			// 최고관리자가 아닌 경우에도 기본 수정/삭제 버튼 표시 (기존 동작 유지)
+			actions.push({
+				label: "수정",
+				icon: <Edit className="h-4 w-4" />,
+				onClick: () => handleEditUser(user),
+			});
+
+			actions.push({
+				label: "삭제",
+				icon: <Trash2 className="h-4 w-4" />,
+				variant: "destructive",
+				onClick: () => handleDeleteUser(user),
+			});
+		}
+
+		return actions;
+	};
 
 	if (loading) {
 		return (
@@ -271,8 +529,7 @@ export default function AdminUsersPage() {
 					searchPlaceholder="사용자명, 이메일 검색..."
 					searchValue={searchTerm}
 					onSearchChange={setSearchTerm}
-					onCreateClick={() => setIsAddUserDialogOpen(true)}
-					createButtonText="사용자 추가"
+					showCreateButton={false}
 				/>
 				<AdminTable>
 					<AdminTableHeader>
@@ -313,6 +570,7 @@ export default function AdminUsersPage() {
 					onSearchChange={setSearchTerm}
 					onCreateClick={() => setIsAddUserDialogOpen(true)}
 					createButtonText="사용자 추가"
+					showCreateButton={isCurrentUserSuperuser}
 				/>
 				<AdminTable>
 					<AdminTableHeader>
@@ -344,9 +602,62 @@ export default function AdminUsersPage() {
 				searchPlaceholder="사용자명, 이메일 검색..."
 				searchValue={searchTerm}
 				onSearchChange={setSearchTerm}
-				onCreateClick={() => setIsAddUserDialogOpen(true)}
-				createButtonText="사용자 추가"
+				showCreateButton={false}
 			/>
+
+			{/* 현재 로그인 사용자 정보 표시 */}
+			{currentUser && (
+				<div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+					<div className="flex items-center justify-between">
+						<div className="text-sm text-blue-800">
+							<span className="font-medium">현재 로그인:</span>{" "}
+							{currentUser.username} ({currentUser.email})
+						</div>
+						<div className="flex items-center gap-2">
+							<Badge
+								variant={currentUser.is_active ? "default" : "destructive"}
+								className={
+									currentUser.is_active
+										? "bg-green-100 text-green-800"
+										: "bg-red-100 text-red-800"
+								}
+							>
+								{currentUser.is_active ? "활성" : "비활성"}
+							</Badge>
+							<Badge
+								variant={currentUser.is_superuser ? "secondary" : "outline"}
+								className={
+									currentUser.is_superuser
+										? "bg-blue-100 text-blue-800"
+										: "bg-gray-100 text-gray-800"
+								}
+							>
+								{currentUser.is_superuser ? "최고관리자" : "일반사용자"}
+							</Badge>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* 필터 탭 추가 */}
+			<Tabs
+				value={activeFilter}
+				onValueChange={(value) => setActiveFilter(value as any)}
+				className="w-full mb-6"
+			>
+				<TabsList className="grid w-full grid-cols-4">
+					<TabsTrigger value="all">전체 ({users.length})</TabsTrigger>
+					<TabsTrigger value="active" className="text-green-600">
+						활성 ({users.filter((u) => u.is_active).length})
+					</TabsTrigger>
+					<TabsTrigger value="inactive" className="text-red-600">
+						비활성 ({users.filter((u) => !u.is_active).length})
+					</TabsTrigger>
+					<TabsTrigger value="superuser" className="text-blue-600">
+						관리자 ({users.filter((u) => u.is_superuser).length})
+					</TabsTrigger>
+				</TabsList>
+			</Tabs>
 
 			<AdminTable>
 				<AdminTableHeader>
@@ -366,7 +677,7 @@ export default function AdminUsersPage() {
 						<AdminTableEmptyRow
 							colSpan={8}
 							message={
-								searchTerm
+								searchTerm || activeFilter !== "all"
 									? "검색 결과가 없습니다."
 									: "표시할 사용자가 없습니다."
 							}
@@ -377,16 +688,21 @@ export default function AdminUsersPage() {
 								<AdminTableCell className="font-medium">
 									{user.id}
 								</AdminTableCell>
-								<AdminTableCell>{user.username}</AdminTableCell>
+								<AdminTableCell>
+									{user.username}
+									{currentUser && user.id === currentUser.id && (
+										<span className="ml-2 text-xs text-blue-600">(본인)</span>
+									)}
+								</AdminTableCell>
 								<AdminTableCell>{user.email}</AdminTableCell>
 								<AdminTableCell>{user.full_name || "-"}</AdminTableCell>
 								<AdminTableCell>
 									{user.is_superuser ? (
-										<Badge className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800 border border-purple-200">
+										<Badge className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 border border-blue-200">
 											관리자
 										</Badge>
 									) : (
-										<Badge className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 border border-blue-200">
+										<Badge className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 border border-gray-200">
 											사용자
 										</Badge>
 									)}
@@ -420,8 +736,8 @@ export default function AdminUsersPage() {
 				onPageChange={handlePageChange}
 			/>
 
-			{/* 사용자 추가 다이얼로그 */}
-			<Dialog
+			{/* 사용자 추가 다이얼로그 제거 */}
+			{/* <Dialog
 				open={isAddUserDialogOpen}
 				onOpenChange={(isOpen) => {
 					setIsAddUserDialogOpen(isOpen);
@@ -491,7 +807,7 @@ export default function AdminUsersPage() {
 						</Button>
 					</DialogFooter>
 				</DialogContent>
-			</Dialog>
+			</Dialog> */}
 
 			{/* 사용자 상세보기 다이얼로그 */}
 			{selectedUser && (
@@ -532,11 +848,11 @@ export default function AdminUsersPage() {
 								<Label className="font-medium">역할:</Label>
 								<div className="col-span-2">
 									{selectedUser.is_superuser ? (
-										<Badge className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800 border border-purple-200">
+										<Badge className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 border border-blue-200">
 											관리자
 										</Badge>
 									) : (
-										<Badge className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 border border-blue-200">
+										<Badge className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 border border-gray-200">
 											사용자
 										</Badge>
 									)}
@@ -603,6 +919,10 @@ export default function AdminUsersPage() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			{/* 기존 상태/권한 변경 다이얼로그들 제거 (토글 방식으로 변경) */}
+			{/* 상태 변경 확인 모달 제거 */}
+			{/* 권한 변경 확인 모달 제거 */}
 		</AdminPageLayout>
 	);
 }
