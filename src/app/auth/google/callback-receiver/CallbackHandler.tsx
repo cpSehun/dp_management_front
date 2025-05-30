@@ -10,14 +10,25 @@ export default function CallbackHandler() {
 	useEffect(() => {
 		const token = searchParams.get("token");
 
-		if (token) {
+		console.log("CallbackHandler: 받은 토큰:", token);
+
+		if (token === "approval_pending") {
+			console.log("CallbackHandler: 승인 대기 페이지로 이동");
+			router.push("/auth/approval-pending");
+		} else if (token && token !== "approval_pending") {
+			console.log("CallbackHandler: 정상 토큰, 대시보드로 이동");
 			localStorage.setItem("access_token", token);
-			router.push("/admin/dashboard");
+			router.replace("/admin/dashboard");
 		} else {
 			console.error("Google OAuth callback: No token received.");
-			router.push("/login");
+			router.replace("/login");
 		}
 	}, [router, searchParams]);
 
-	return null; // 로직 처리 후 UI 반환 없음
+	return (
+		<div style={{ padding: "20px", textAlign: "center" }}>
+			<h3>처리 중...</h3>
+			<p>CallbackHandler 실행 중입니다.</p>
+		</div>
+	);
 }

@@ -1,6 +1,4 @@
-"use client"; // 또는 이 페이지를 서버 컴포넌트로 두고 Suspense만 사용
-
-// export const dynamic = 'force-dynamic'; // 필요하다면 유지
+"use client";
 
 import { Suspense } from "react";
 import CallbackHandler from "./CallbackHandler";
