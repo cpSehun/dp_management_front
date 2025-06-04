@@ -13,6 +13,20 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import {
+	AdminTable,
+	AdminTableHeader,
+	AdminTableHeaderCell,
+	AdminTableBody,
+	AdminTableRow,
+	AdminTableCell,
+	AdminTableLoadingRow,
+	AdminTableEmptyRow,
+} from "@/components/admin/AdminTable";
+import { ActionDropdown, ActionItem } from "@/components/admin/ActionDropdown";
+import { AdminPagination } from "@/components/admin/AdminPagination";
 
 // 이미지 타입 정의 (백엔드 스키마와 일치)
 interface GeneratedImage {
@@ -48,6 +62,10 @@ export default function ImageListPage() {
 	const [currentImage, setCurrentImage] = useState<GeneratedImage | null>(null);
 	const [isDeleting, setIsDeleting] = useState(false);
 
+	// 현재 사용자 정보 상태 추가
+	const [currentUser, setCurrentUser] = useState<any>(null);
+	const [isCurrentUserSuperuser, setIsCurrentUserSuperuser] = useState(false);
+
 	// Debounce search term
 	useEffect(() => {
 		const handler = setTimeout(() => {
@@ -57,10 +75,6 @@ export default function ImageListPage() {
 			clearTimeout(handler);
 		};
 	}, [searchTerm]);
-
-	// 현재 사용자 정보 상태 추가
-	const [currentUser, setCurrentUser] = useState<any>(null);
-	const [isCurrentUserSuperuser, setIsCurrentUserSuperuser] = useState(false);
 
 	// 현재 사용자 정보 확인
 	useEffect(() => {
@@ -159,6 +173,10 @@ export default function ImageListPage() {
 
 	// 삭제 대화상자 열기
 	const handleOpenDelete = (image: GeneratedImage) => {
+		if (!isCurrentUserSuperuser) {
+			toast.error("최고관리자만 이미지를 삭제할 수 있습니다.");
+			return;
+		}
 		setCurrentImage(image);
 		setIsDeleteDialogOpen(true);
 	};
@@ -233,471 +251,192 @@ export default function ImageListPage() {
 	};
 
 	// 각 이미지의 액션 메뉴 생성
-	const getImageActions = (image: GeneratedImage) => [
-		{
-			label: "상세보기",
-			icon: <Eye className="h-4 w-4" />,
-			onClick: () => handleOpenPreview(image),
-		},
-		{
-			label: "삭제",
-			icon: <Trash2 className="h-4 w-4" />,
-			variant: "destructive" as const,
-			onClick: () => handleOpenDelete(image),
-		},
-	];
+	const getImageActions = (image: GeneratedImage): ActionItem[] => {
+		const actions: ActionItem[] = [
+			{
+				label: "상세보기",
+				icon: <Eye className="h-4 w-4" />,
+				onClick: () => handleOpenPreview(image),
+			},
+		];
+
+		// 최고관리자만 삭제 기능 사용 가능
+		if (isCurrentUserSuperuser) {
+			actions.push({
+				label: "삭제",
+				icon: <Trash2 className="h-4 w-4" />,
+				variant: "destructive",
+				onClick: () => handleOpenDelete(image),
+			});
+		}
+
+		return actions;
+	};
 
 	// 초기 로딩 상태
 	if (isLoading && images.length === 0 && !searchTerm) {
 		return (
-			<div className="min-h-screen bg-slate-50/50">
-				<div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-					<div className="space-y-8">
-						{/* 헤더 */}
-						<div className="space-y-6">
-							<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-								<div className="min-w-0 flex-1">
-									<h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-										이미지 목록
-									</h1>
-									<p className="mt-2 text-sm text-slate-600">
-										데이터를 관리하고 검색할 수 있습니다.
-									</p>
-								</div>
-								<div className="flex-shrink-0">
-									<Button
-										onClick={handleCreateImage}
-										className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 transition-colors"
-									>
-										<ExternalLink className="-ml-0.5 mr-2 h-4 w-4" />새 이미지
-										생성
-									</Button>
-								</div>
-							</div>
-						</div>
-
-						{/* 테이블 */}
-						<div className="overflow-hidden bg-white shadow-sm ring-1 ring-slate-200 md:rounded-xl">
-							<div className="overflow-x-auto">
-								<table className="min-w-full divide-y divide-slate-200">
-									<thead className="bg-slate-50/75">
-										<tr>
-											<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
-												미리보기
-											</th>
-											<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider min-w-[200px] max-w-[300px]">
-												프롬프트
-											</th>
-											<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
-												모델
-											</th>
-											<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
-												태그
-											</th>
-											<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
-												생성자
-											</th>
-											<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
-												생성일
-											</th>
-											<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider text-right">
-												관리
-											</th>
-										</tr>
-									</thead>
-									<tbody className="divide-y divide-slate-200 bg-white">
-										<tr className="hover:bg-slate-50/50 transition-colors duration-200">
-											<td colSpan={7} className="px-6 py-12 text-center">
-												<div className="flex items-center justify-center">
-													<div className="flex items-center space-x-3">
-														<div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-900"></div>
-														<span className="text-sm text-slate-600 font-medium">
-															데이터를 불러오는 중입니다...
-														</span>
-													</div>
-												</div>
-											</td>
-										</tr>
-									</tbody>
-								</table>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
+			<AdminPageLayout>
+				<AdminPageHeader
+					title="이미지 목록"
+					searchPlaceholder="프롬프트, 모델, 태그 검색..."
+					searchValue={searchTerm}
+					onSearchChange={handleSearchTermChange}
+					onCreateClick={handleCreateImage}
+					createButtonText="새 이미지 생성"
+				/>
+				<AdminTable>
+					<AdminTableHeader>
+						<AdminTableHeaderCell>미리보기</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="min-w-[200px] max-w-[300px]">
+							프롬프트
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell>모델</AdminTableHeaderCell>
+						<AdminTableHeaderCell>태그</AdminTableHeaderCell>
+						<AdminTableHeaderCell>생성자</AdminTableHeaderCell>
+						<AdminTableHeaderCell>생성일</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="text-right">
+							관리
+						</AdminTableHeaderCell>
+					</AdminTableHeader>
+					<AdminTableBody>
+						<AdminTableLoadingRow colSpan={7} />
+					</AdminTableBody>
+				</AdminTable>
+			</AdminPageLayout>
 		);
 	}
 
 	// 에러 상태
 	if (error && images.length === 0) {
 		return (
-			<div className="min-h-screen bg-slate-50/50">
-				<div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-					<div className="text-red-500 text-center p-6">Error: {error}</div>
-				</div>
-			</div>
+			<AdminPageLayout>
+				<AdminPageHeader
+					title="이미지 목록"
+					searchPlaceholder="프롬프트, 모델, 태그 검색..."
+					searchValue={searchTerm}
+					onSearchChange={handleSearchTermChange}
+					onCreateClick={handleCreateImage}
+					createButtonText="새 이미지 생성"
+				/>
+				<div className="text-red-500 text-center p-6">Error: {error}</div>
+			</AdminPageLayout>
 		);
 	}
 
 	return (
-		<div className="min-h-screen bg-slate-50/50">
-			<div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-				<div className="space-y-8">
-					{/* 헤더 */}
-					<div className="space-y-6">
-						<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-							<div className="min-w-0 flex-1">
-								<h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-									이미지 목록
-								</h1>
-								<p className="mt-2 text-sm text-slate-600">
-									데이터를 관리하고 검색할 수 있습니다.
-								</p>
-							</div>
-							<div className="flex-shrink-0">
-								<Button
-									onClick={handleCreateImage}
-									className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 transition-colors"
-								>
-									<ExternalLink className="-ml-0.5 mr-2 h-4 w-4" />새 이미지
-									생성
-								</Button>
-							</div>
-						</div>
+		<AdminPageLayout>
+			<AdminPageHeader
+				title="이미지 목록"
+				searchPlaceholder="프롬프트, 모델, 태그 검색..."
+				searchValue={searchTerm}
+				onSearchChange={handleSearchTermChange}
+				onCreateClick={handleCreateImage}
+				createButtonText="새 이미지 생성"
+			/>
 
-						{/* 검색바 */}
-						<div className="flex flex-1 items-center justify-center px-2 lg:ml-0 lg:justify-start">
-							<div className="w-full max-w-lg lg:max-w-xs">
-								<label htmlFor="search" className="sr-only">
-									검색
-								</label>
-								<div className="relative">
-									<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-										<Eye
-											className="h-4 w-4 text-slate-400"
-											aria-hidden="true"
+			<AdminTable>
+				<AdminTableHeader>
+					<AdminTableHeaderCell>미리보기</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="min-w-[200px] max-w-[300px]">
+						프롬프트
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell>모델</AdminTableHeaderCell>
+					<AdminTableHeaderCell>태그</AdminTableHeaderCell>
+					<AdminTableHeaderCell>생성자</AdminTableHeaderCell>
+					<AdminTableHeaderCell>생성일</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="text-right">
+						관리
+					</AdminTableHeaderCell>
+				</AdminTableHeader>
+				<AdminTableBody>
+					{isLoading ? (
+						<AdminTableLoadingRow colSpan={7} />
+					) : error ? (
+						<AdminTableRow>
+							<AdminTableCell
+								colSpan={7}
+								className="h-24 text-center text-red-500"
+							>
+								{error}
+							</AdminTableCell>
+						</AdminTableRow>
+					) : images.length === 0 ? (
+						<AdminTableEmptyRow
+							colSpan={7}
+							message={
+								searchTerm
+									? "검색 결과가 없습니다."
+									: "등록된 이미지가 없습니다."
+							}
+						/>
+					) : (
+						images.map((image) => (
+							<AdminTableRow key={image.id}>
+								<AdminTableCell>
+									<div
+										className="w-12 h-12 rounded overflow-hidden cursor-pointer bg-gray-100 hover:opacity-80 transition-opacity"
+										onClick={() => handleOpenPreview(image)}
+									>
+										<img
+											src={image.s3_url}
+											alt="이미지 미리보기"
+											className="w-full h-full object-cover"
+											onError={(e) => {
+												e.currentTarget.src =
+													"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyNkMxNi42ODYzIDI2IDEzLjk5OTkgMjMuMzEzNyAxMy45OTk5IDIwQzEzLjk5OTkgMTYuNjg2MyAxNi42ODYzIDE0IDIwIDE0QzIzLjMxMzcgMTQgMjYgMTYuNjg2MyAyNiAyMEMyNiAyMy4zMTM3IDIzLjMxMzcgMjYgMjAgMjZaIiBmaWxsPSIjOUM5Q0EzIi8+Cjwvc3ZnPgo=";
+											}}
 										/>
 									</div>
-									<input
-										id="search"
-										name="search"
-										type="search"
-										placeholder="프롬프트, 모델, 태그 검색..."
-										value={searchTerm}
-										onChange={(e) => handleSearchTermChange(e.target.value)}
-										className="block w-full rounded-lg border-0 bg-white py-2.5 pl-10 pr-3 text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-slate-900 sm:text-sm sm:leading-6"
-									/>
-								</div>
-							</div>
-						</div>
-					</div>
-
-					{/* 테이블 */}
-					<div className="overflow-hidden bg-white shadow-sm ring-1 ring-slate-200 md:rounded-xl">
-						<div className="overflow-x-auto">
-							<table className="min-w-full divide-y divide-slate-200">
-								<thead className="bg-slate-50/75">
-									<tr>
-										<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
-											미리보기
-										</th>
-										<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider min-w-[200px] max-w-[300px]">
-											프롬프트
-										</th>
-										<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
-											모델
-										</th>
-										<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
-											태그
-										</th>
-										<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
-											생성자
-										</th>
-										<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">
-											생성일
-										</th>
-										<th className="px-6 py-4 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider text-right">
-											관리
-										</th>
-									</tr>
-								</thead>
-								<tbody className="divide-y divide-slate-200 bg-white">
-									{isLoading ? (
-										<tr className="hover:bg-slate-50/50 transition-colors duration-200">
-											<td colSpan={7} className="px-6 py-12 text-center">
-												<div className="flex items-center justify-center">
-													<div className="flex items-center space-x-3">
-														<div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-900"></div>
-														<span className="text-sm text-slate-600 font-medium">
-															데이터를 불러오는 중입니다...
-														</span>
-													</div>
-												</div>
-											</td>
-										</tr>
-									) : error ? (
-										<tr className="hover:bg-slate-50/50 transition-colors duration-200">
-											<td colSpan={7} className="h-24 text-center text-red-500">
-												{error}
-											</td>
-										</tr>
-									) : images.length === 0 ? (
-										<tr className="hover:bg-slate-50/50 transition-colors duration-200">
-											<td colSpan={7} className="px-6 py-16 text-center">
-												<div className="flex flex-col items-center justify-center">
-													<div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-														<svg
-															className="h-6 w-6 text-slate-400"
-															fill="none"
-															viewBox="0 0 24 24"
-															stroke="currentColor"
-															aria-hidden="true"
-														>
-															<path
-																strokeLinecap="round"
-																strokeLinejoin="round"
-																strokeWidth={1.5}
-																d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-															/>
-														</svg>
-													</div>
-													<h3 className="mt-4 text-sm font-semibold text-slate-900">
-														데이터 없음
-													</h3>
-													<p className="mt-1 text-sm text-slate-500">
-														{searchTerm
-															? "검색 결과가 없습니다."
-															: "등록된 이미지가 없습니다."}
-													</p>
-												</div>
-											</td>
-										</tr>
-									) : (
-										images.map((image) => (
-											<tr
-												key={image.id}
-												className="hover:bg-slate-50/50 transition-colors duration-200"
-											>
-												<td className="px-6 py-4 text-sm text-slate-900">
-													<div
-														className="w-12 h-12 rounded overflow-hidden cursor-pointer bg-gray-100 hover:opacity-80 transition-opacity"
-														onClick={() => handleOpenPreview(image)}
-													>
-														<img
-															src={image.s3_url}
-															alt="이미지 미리보기"
-															className="w-full h-full object-cover"
-															onError={(e) => {
-																e.currentTarget.src =
-																	"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yMCAyNkMxNi42ODYzIDI2IDEzLjk5OTkgMjMuMzEzNyAxMy45OTk5IDIwQzEzLjk5OTkgMTYuNjg2MyAxNi42ODYzIDE0IDIwIDE0QzIzLjMxMzcgMTQgMjYgMTYuNjg2MyAyNiAyMEMyNiAyMy4zMTM3IDIzLjMxMzcgMjYgMjAgMjZaIiBmaWxsPSIjOUM5Q0EzIi8+Cjwvc3ZnPgo=";
-															}}
-														/>
-													</div>
-												</td>
-												<td className="px-6 py-4 text-sm text-slate-900 max-w-[300px]">
-													<div className="truncate" title={image.prompt}>
-														{truncatePrompt(image.prompt, 50)}
-													</div>
-												</td>
-												<td className="px-6 py-4 text-sm text-slate-900">
-													<span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-														{image.model}
-													</span>
-												</td>
-												<td className="px-6 py-4 text-sm text-slate-900">
-													<div className="flex flex-wrap gap-1">
-														{getTagsArray(image.tags)
-															.slice(0, 2)
-															.map((tag) => (
-																<span
-																	key={tag}
-																	className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-200 transition-colors"
-																>
-																	{tag}
-																</span>
-															))}
-														{getTagsArray(image.tags).length > 2 && (
-															<span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-																+{getTagsArray(image.tags).length - 2}
-															</span>
-														)}
-													</div>
-												</td>
-												<td className="px-6 py-4 text-sm text-slate-900">
-													{image.created_by || "N/A"}
-												</td>
-												<td className="px-6 py-4 text-sm text-slate-900">
-													{formatDate(image.created_at)}
-												</td>
-												<td className="px-6 py-4 text-sm text-slate-900 text-right">
-													<div className="relative inline-block">
-														<button
-															className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 hover:bg-slate-100 focus:bg-slate-100 focus:text-slate-900 inline-flex items-center justify-center rounded-md transition-colors"
-															onClick={(e) => {
-																e.preventDefault();
-																const actions = getImageActions(image);
-																// 간단한 드롭다운 메뉴 구현
-																const rect =
-																	e.currentTarget.getBoundingClientRect();
-																const menu = document.createElement("div");
-																menu.className =
-																	"fixed bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1";
-																menu.style.left = `${rect.right - 120}px`;
-																menu.style.top = `${rect.bottom + 5}px`;
-																menu.style.minWidth = "120px";
-
-																actions.forEach((action) => {
-																	const item = document.createElement("button");
-																	item.className = `w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
-																		action.variant === "destructive"
-																			? "text-red-600 hover:bg-red-50"
-																			: "text-gray-700"
-																	}`;
-																	item.innerHTML = `${
-																		action.icon
-																			? '<span class="w-4 h-4"></span>'
-																			: ""
-																	} ${action.label}`;
-																	item.onclick = () => {
-																		action.onClick();
-																		document.body.removeChild(menu);
-																	};
-																	menu.appendChild(item);
-																});
-
-																document.body.appendChild(menu);
-
-																const closeMenu = () => {
-																	if (document.body.contains(menu)) {
-																		document.body.removeChild(menu);
-																	}
-																	document.removeEventListener(
-																		"click",
-																		closeMenu
-																	);
-																};
-
-																setTimeout(
-																	() =>
-																		document.addEventListener(
-																			"click",
-																			closeMenu
-																		),
-																	100
-																);
-															}}
-														>
-															<span className="sr-only">메뉴 열기</span>
-															<svg
-																className="h-4 w-4"
-																fill="currentColor"
-																viewBox="0 0 20 20"
-															>
-																<path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-															</svg>
-														</button>
-													</div>
-												</td>
-											</tr>
-										))
-									)}
-								</tbody>
-							</table>
-						</div>
-					</div>
-
-					{/* 페이지네이션 */}
-					{totalImages > ITEMS_PER_PAGE && (
-						<div className="flex items-center justify-between bg-white px-4 py-6 sm:px-6 border-t border-slate-200">
-							<div className="flex flex-1 justify-between sm:hidden">
-								<button
-									onClick={() => handlePageChange(currentPage - 1)}
-									disabled={currentPage <= 1}
-									className="relative inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-								>
-									이전
-								</button>
-								<button
-									onClick={() => handlePageChange(currentPage + 1)}
-									disabled={
-										currentPage >= Math.ceil(totalImages / ITEMS_PER_PAGE)
-									}
-									className="relative ml-3 inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-								>
-									다음
-								</button>
-							</div>
-
-							<div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-								<div>
-									<p className="text-sm text-slate-700">
-										<span className="font-medium text-slate-900">
-											{totalImages}개
-										</span>{" "}
-										중{" "}
-										<span className="font-medium text-slate-900">
-											{(currentPage - 1) * ITEMS_PER_PAGE + 1}
-										</span>
-										-
-										<span className="font-medium text-slate-900">
-											{Math.min(currentPage * ITEMS_PER_PAGE, totalImages)}
-										</span>
-										개 표시
-									</p>
-								</div>
-
-								<div className="flex gap-1">
-									<button
-										onClick={() => handlePageChange(currentPage - 1)}
-										disabled={currentPage <= 1}
-										className="text-slate-700 hover:text-slate-900 hover:bg-slate-50 border-slate-300 relative inline-flex items-center rounded-md px-3 py-2 text-sm font-medium border disabled:opacity-50 disabled:cursor-not-allowed"
-									>
-										이전
-									</button>
-
-									{Array.from(
-										{ length: Math.ceil(totalImages / ITEMS_PER_PAGE) },
-										(_, i) => i + 1
-									)
-										.filter(
-											(page) =>
-												page === 1 ||
-												page === Math.ceil(totalImages / ITEMS_PER_PAGE) ||
-												Math.abs(page - currentPage) <= 2
-										)
-										.map((page, index, filteredPages) => (
-											<React.Fragment key={page}>
-												{index > 0 && filteredPages[index - 1] < page - 1 && (
-													<span className="px-2 py-2 text-slate-500">...</span>
-												)}
-												<button
-													onClick={() => handlePageChange(page)}
-													className={`relative inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md ${
-														page === currentPage
-															? "bg-slate-900 text-white hover:bg-slate-800 border-slate-900"
-															: "text-slate-700 hover:text-slate-900 hover:bg-slate-50 border-slate-300"
-													}`}
+								</AdminTableCell>
+								<AdminTableCell className="max-w-[300px]">
+									<div className="truncate" title={image.prompt}>
+										{truncatePrompt(image.prompt, 50)}
+									</div>
+								</AdminTableCell>
+								<AdminTableCell>
+									<Badge variant="outline">{image.model}</Badge>
+								</AdminTableCell>
+								<AdminTableCell>
+									<div className="flex flex-wrap gap-1">
+										{getTagsArray(image.tags)
+											.slice(0, 2)
+											.map((tag) => (
+												<Badge
+													key={tag}
+													variant="secondary"
+													className="text-xs"
 												>
-													{page}
-												</button>
-											</React.Fragment>
-										))}
-
-									<button
-										onClick={() => handlePageChange(currentPage + 1)}
-										disabled={
-											currentPage >= Math.ceil(totalImages / ITEMS_PER_PAGE)
-										}
-										className="text-slate-700 hover:text-slate-900 hover:bg-slate-50 border-slate-300 relative inline-flex items-center rounded-md px-3 py-2 text-sm font-medium border disabled:opacity-50 disabled:cursor-not-allowed"
-									>
-										다음
-									</button>
-								</div>
-							</div>
-						</div>
+													{tag}
+												</Badge>
+											))}
+										{getTagsArray(image.tags).length > 2 && (
+											<Badge variant="outline" className="text-xs">
+												+{getTagsArray(image.tags).length - 2}
+											</Badge>
+										)}
+									</div>
+								</AdminTableCell>
+								<AdminTableCell>{image.created_by || "N/A"}</AdminTableCell>
+								<AdminTableCell>{formatDate(image.created_at)}</AdminTableCell>
+								<AdminTableCell className="text-right">
+									<ActionDropdown actions={getImageActions(image)} />
+								</AdminTableCell>
+							</AdminTableRow>
+						))
 					)}
-				</div>
-			</div>
+				</AdminTableBody>
+			</AdminTable>
+
+			{totalImages > ITEMS_PER_PAGE && (
+				<AdminPagination
+					currentPage={currentPage}
+					totalPages={Math.ceil(totalImages / ITEMS_PER_PAGE)}
+					totalItems={totalImages}
+					itemsPerPage={ITEMS_PER_PAGE}
+					onPageChange={handlePageChange}
+				/>
+			)}
 
 			{/* 삭제 확인 다이얼로그 */}
 			<Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -729,7 +468,6 @@ export default function ImageListPage() {
 							variant="destructive"
 							onClick={handleDelete}
 							disabled={isDeleting}
-							className="bg-red-600 text-white hover:bg-red-700"
 						>
 							{isDeleting ? "삭제 중..." : "삭제"}
 						</Button>
@@ -773,9 +511,7 @@ export default function ImageListPage() {
 									<h4 className="text-sm font-semibold mb-1 text-gray-700">
 										모델
 									</h4>
-									<span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-600">
-										{currentImage.model}
-									</span>
+									<Badge variant="outline">{currentImage.model}</Badge>
 								</div>
 								{currentImage.model === "flux-dev" && (
 									<div className="grid grid-cols-2 gap-4">
@@ -823,12 +559,9 @@ export default function ImageListPage() {
 									</h4>
 									<div className="flex flex-wrap gap-1">
 										{getTagsArray(currentImage.tags).map((tag) => (
-											<span
-												key={tag}
-												className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-600"
-											>
+											<Badge key={tag} variant="outline" className="text-xs">
 												{tag}
-											</span>
+											</Badge>
 										))}
 									</div>
 								</div>
@@ -857,6 +590,6 @@ export default function ImageListPage() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</div>
+		</AdminPageLayout>
 	);
 }

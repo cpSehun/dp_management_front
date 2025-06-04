@@ -31,17 +31,12 @@ export default function ApprovalPendingPage() {
 								<Shield className="h-4 w-4 text-slate-400" />
 								<span>관리자가 계정을 검토 중입니다</span>
 							</div>
-							<div className="flex items-center gap-3 text-sm text-slate-600">
-								<Mail className="h-4 w-4 text-slate-400" />
-								<span>승인 완료 시 알림을 받으실 수 있습니다</span>
-							</div>
 						</div>
 
 						<div className="text-xs text-slate-500 bg-blue-50 p-3 rounded border-l-4 border-blue-200">
 							<p className="font-medium text-blue-800 mb-1">안내사항</p>
 							<p className="text-blue-700">
-								승인 과정은 보통 1-2일 정도 소요됩니다. 급한 경우 관리자에게
-								직접 문의해 주세요.
+								급한 경우 관리자에게 ES팀에 문의해 주세요.
 							</p>
 						</div>
 					</div>
@@ -50,22 +45,6 @@ export default function ApprovalPendingPage() {
 						<Button asChild className="w-full bg-slate-900 hover:bg-slate-800">
 							<Link href="/login">로그인 페이지로 돌아가기</Link>
 						</Button>
-
-						<Button variant="outline" asChild className="w-full">
-							<Link href="/">홈페이지로 이동</Link>
-						</Button>
-					</div>
-
-					<div className="text-center">
-						<p className="text-xs text-slate-500">
-							이미 승인된 계정이 있으신가요?{" "}
-							<Link
-								href="/login"
-								className="text-blue-600 hover:text-blue-800 font-medium"
-							>
-								로그인 시도하기
-							</Link>
-						</p>
 					</div>
 				</CardContent>
 			</Card>

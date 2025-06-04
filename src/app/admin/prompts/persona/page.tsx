@@ -389,19 +389,59 @@ export default function PersonaPromptsPage() {
 		},
 	];
 
+	// 초기 로딩 상태
 	if (isLoading && prompts.length === 0 && !searchTerm) {
 		return (
 			<AdminPageLayout>
-				<div className="flex justify-center items-center h-64">
-					<AdminTableLoadingRow colSpan={1} />
-				</div>
+				<AdminPageHeader
+					title="페르소나 프롬프트 목록"
+					searchPlaceholder="페르소나 프롬프트 검색..."
+					searchValue={searchTerm}
+					onSearchChange={handleSearchTermChange}
+					onCreateClick={() => setIsCreateDialogOpen(true)}
+					createButtonText="프롬프트 생성"
+				/>
+				<AdminTable>
+					<AdminTableHeader>
+						<AdminTableHeaderCell className="min-w-[150px]">
+							이름
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="min-w-[200px] max-w-[300px]">
+							LLM 프롬프트
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="min-w-[100px]">
+							현재 버전
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="min-w-[120px]">
+							생성자
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="min-w-[150px]">
+							최종 수정일
+						</AdminTableHeaderCell>
+						<AdminTableHeaderCell className="text-right w-[100px]">
+							액션
+						</AdminTableHeaderCell>
+					</AdminTableHeader>
+					<AdminTableBody>
+						<AdminTableLoadingRow colSpan={6} />
+					</AdminTableBody>
+				</AdminTable>
 			</AdminPageLayout>
 		);
 	}
 
+	// 에러 상태
 	if (error && prompts.length === 0) {
 		return (
 			<AdminPageLayout>
+				<AdminPageHeader
+					title="페르소나 프롬프트 목록"
+					searchPlaceholder="페르소나 프롬프트 검색..."
+					searchValue={searchTerm}
+					onSearchChange={handleSearchTermChange}
+					onCreateClick={() => setIsCreateDialogOpen(true)}
+					createButtonText="프롬프트 생성"
+				/>
 				<div className="text-red-500 text-center p-6">Error: {error}</div>
 			</AdminPageLayout>
 		);
