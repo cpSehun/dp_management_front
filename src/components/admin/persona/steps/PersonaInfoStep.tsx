@@ -40,13 +40,6 @@ export function PersonaInfoStep() {
 		// 참고사항이 있으면 추가
 		const finalPrompt = addNotes(formattedPrompt, regenerationNotes);
 
-		// 디버깅을 위한 로그 추가
-		console.log("=== 페르소나 정보 생성 디버그 ===");
-		console.log("컨셉:", concept);
-		console.log("기본 프롬프트:", basePrompt);
-		console.log("포맷된 프롬프트:", formattedPrompt);
-		console.log("최종 프롬프트:", finalPrompt);
-
 		const response = await fetch("/api/v1/llm/generate", {
 			method: "POST",
 			headers: {

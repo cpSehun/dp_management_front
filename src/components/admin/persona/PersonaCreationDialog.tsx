@@ -1,5 +1,3 @@
-// src/components/admin/persona/PersonaCreationDialog.tsx
-
 import React, { useEffect } from "react";
 import {
 	Dialog,
@@ -19,39 +17,9 @@ import {
 import { StepIndicator } from "./common/StepIndicator";
 import { ConceptGenerationStep } from "./steps/ConceptGenerationStep";
 import { PersonaInfoStep } from "./steps/PersonaInfoStep";
+import { SummaryAndTagsStep } from "./steps/SummaryAndTagsStep";
 
-// 임시 3단계, 4단계 컴포넌트
-function SummaryAndTagsStep() {
-	const { data, setCurrentStep } = usePersonaCreation();
-
-	return (
-		<div className="space-y-6">
-			<div className="text-center space-y-4">
-				<h3 className="text-xl font-semibold">
-					3단계: 페르소나 요약, 태그 입력/수정
-				</h3>
-				<p className="text-gray-600">이전 단계 데이터:</p>
-				<div className="p-4 bg-blue-50 rounded-lg text-left">
-					<p className="font-medium mb-2">컨셉: {data.step1.concept}</p>
-					<p className="text-sm text-gray-600 mb-2">
-						페르소나 정보: {data.step2.personaInfo.substring(0, 100)}...
-					</p>
-				</div>
-				<p className="text-gray-500">3단계 구현 예정...</p>
-			</div>
-
-			<div className="flex justify-end">
-				<Button
-					onClick={() => setCurrentStep(4)}
-					className="bg-green-600 hover:bg-green-700"
-				>
-					다음 단계
-				</Button>
-			</div>
-		</div>
-	);
-}
-
+// 임시 4단계 컴포넌트
 function ImageGenerationStep() {
 	const { data } = usePersonaCreation();
 
