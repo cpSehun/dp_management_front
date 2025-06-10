@@ -242,7 +242,7 @@ export function ConceptGenerationStep() {
 						<Textarea
 							value={generatedConcept}
 							onChange={(e) => setGeneratedConcept(e.target.value)}
-							className="min-h-[200px] bg-white border-green-200 resize-y"
+							className="min-h-[200px] max-h-[400px] bg-white border-green-200 resize-y overflow-y-auto"
 							placeholder="생성된 컨셉이 여기에 표시됩니다..."
 						/>
 					</CardContent>

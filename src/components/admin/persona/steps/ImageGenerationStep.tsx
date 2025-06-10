@@ -129,11 +129,22 @@ export function ImageGenerationStep() {
 				const byteArray = new Uint8Array(byteNumbers);
 				imageBlob = new Blob([byteArray], { type: "image/png" });
 			} else {
-				// URL 이미지 처리 (flux-dev)
-				const response = await fetch(selectedImage.url);
+				// URL 이미지 처리 (flux-dev) - 백엔드 프록시를 통해 다운로드
+				const response = await fetch("/api/v1/image-generator/download-image", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+					},
+					body: JSON.stringify({
+						image_url: selectedImage.url,
+					}),
+				});
+
 				if (!response.ok) {
 					throw new Error("이미지 다운로드에 실패했습니다.");
 				}
+
 				imageBlob = await response.blob();
 			}
 
