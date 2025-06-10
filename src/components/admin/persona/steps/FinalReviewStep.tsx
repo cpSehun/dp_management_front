@@ -239,16 +239,6 @@ export function FinalReviewStep() {
 					)}
 				</Button>
 			</div>
-
-			{/* 개발자용 데이터 확인 */}
-			<details className="mt-6">
-				<summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
-					개발자용: 전체 데이터 확인
-				</summary>
-				<pre className="mt-2 p-3 bg-gray-100 rounded text-xs overflow-auto max-h-60">
-					{JSON.stringify(data, null, 2)}
-				</pre>
-			</details>
 		</div>
 	);
 }

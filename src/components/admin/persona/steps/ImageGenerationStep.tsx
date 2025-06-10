@@ -35,6 +35,9 @@ export function ImageGenerationStep() {
 		"flux-dev" | "gpt-image-1"
 	>("flux-dev");
 
+	// 이미지 개수 선택 상태 추가 (기본값 1개)
+	const [batchSize, setBatchSize] = useState(1);
+
 	// 이미지 생성 설정 (flux-dev용)
 	const [seed, setSeed] = useState<number | null>(() =>
 		Math.floor(Math.random() * 4294967295)
@@ -42,7 +45,6 @@ export function ImageGenerationStep() {
 	const [useSpecificSeed, setUseSpecificSeed] = useState(false);
 	const [steps, setSteps] = useState(40);
 	const [useSpecificSteps, setUseSpecificSteps] = useState(false);
-	const [batchSize] = useState(4); // 고정 4개
 
 	// 이미지 생성 상태
 	const [isGenerating, setIsGenerating] = useState(false);
@@ -106,6 +108,67 @@ export function ImageGenerationStep() {
 				}
 			})
 		);
+	};
+
+	// 이미지 다운로드 함수
+	const downloadSelectedImage = async () => {
+		const selectedImage = generatedImages.find((img) => img.selected);
+		if (!selectedImage) return;
+
+		try {
+			let imageBlob: Blob;
+
+			if (selectedImage.is_base64) {
+				// Base64 이미지 처리 (gpt-image-1)
+				const base64Data = selectedImage.url.split(",")[1];
+				const byteCharacters = atob(base64Data);
+				const byteNumbers = new Array(byteCharacters.length);
+				for (let i = 0; i < byteCharacters.length; i++) {
+					byteNumbers[i] = byteCharacters.charCodeAt(i);
+				}
+				const byteArray = new Uint8Array(byteNumbers);
+				imageBlob = new Blob([byteArray], { type: "image/png" });
+			} else {
+				// URL 이미지 처리 (flux-dev)
+				const response = await fetch(selectedImage.url);
+				if (!response.ok) {
+					throw new Error("이미지 다운로드에 실패했습니다.");
+				}
+				imageBlob = await response.blob();
+			}
+
+			// 파일명 생성 (페르소나 이름이나 타임스탬프 사용)
+			const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+			const filename = `persona_image_${timestamp}.png`;
+
+			// 다운로드 실행
+			const url = window.URL.createObjectURL(imageBlob);
+			const link = document.createElement("a");
+			link.href = url;
+			link.download = filename;
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			window.URL.revokeObjectURL(url);
+		} catch (error) {
+			console.error("이미지 다운로드 오류:", error);
+			setError("이미지 다운로드 중 오류가 발생했습니다.");
+		}
+	};
+
+	// 그리드 클래스 동적 생성 함수
+	const getGridClass = (imageCount: number) => {
+		switch (imageCount) {
+			case 1:
+				return "grid grid-cols-1 gap-4 justify-items-center";
+			case 2:
+				return "grid grid-cols-1 sm:grid-cols-2 gap-4";
+			case 3:
+				return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4";
+			case 4:
+			default:
+				return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-4";
+		}
 	};
 
 	// 이미지 생성
@@ -378,25 +441,51 @@ export function ImageGenerationStep() {
 				</CardContent>
 			</Card>
 
-			{/* 이미지 생성 모델 선택 */}
+			{/* 이미지 생성 설정 */}
 			<Card>
 				<CardHeader>
-					<CardTitle className="text-lg">이미지 생성 모델</CardTitle>
+					<CardTitle className="text-lg">이미지 생성 설정</CardTitle>
 				</CardHeader>
-				<CardContent>
-					<div className="flex gap-4">
-						{["flux-dev", "gpt-image-1"].map((model) => (
-							<Button
-								key={model}
-								type="button"
-								variant={selectedImageModel === model ? "default" : "outline"}
-								onClick={() =>
-									setSelectedImageModel(model as "flux-dev" | "gpt-image-1")
-								}
-							>
-								{model}
-							</Button>
-						))}
+				<CardContent className="space-y-6">
+					{/* 모델 선택 */}
+					<div>
+						<Label className="text-sm font-medium mb-3 block">생성 모델</Label>
+						<div className="flex gap-2">
+							{["flux-dev", "gpt-image-1"].map((model) => (
+								<Button
+									key={model}
+									type="button"
+									variant={selectedImageModel === model ? "default" : "outline"}
+									onClick={() =>
+										setSelectedImageModel(model as "flux-dev" | "gpt-image-1")
+									}
+									size="sm"
+								>
+									{model}
+								</Button>
+							))}
+						</div>
+					</div>
+
+					{/* 이미지 개수 선택 */}
+					<div>
+						<Label className="text-sm font-medium mb-3 block">
+							생성할 이미지 개수
+						</Label>
+						<div className="flex gap-2">
+							{[1, 2, 3, 4].map((count) => (
+								<Button
+									key={count}
+									type="button"
+									variant={batchSize === count ? "default" : "outline"}
+									onClick={() => setBatchSize(count)}
+									size="sm"
+									className="min-w-[2.5rem]"
+								>
+									{count}
+								</Button>
+							))}
+						</div>
 					</div>
 				</CardContent>
 			</Card>
@@ -405,7 +494,7 @@ export function ImageGenerationStep() {
 			{selectedImageModel === "flux-dev" && (
 				<Card>
 					<CardHeader>
-						<CardTitle className="text-lg">고급 설정</CardTitle>
+						<CardTitle className="text-lg">고급 설정 (Flux-dev 전용)</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-4">
 						{/* 스텝 설정 */}
@@ -416,7 +505,7 @@ export function ImageGenerationStep() {
 								onCheckedChange={(checked) => setUseSpecificSteps(!!checked)}
 							/>
 							<Label htmlFor="useSpecificSteps" className="text-sm font-medium">
-								Step 지정하기
+								Step 지정하기 (기본: 40)
 							</Label>
 						</div>
 						{useSpecificSteps && (
@@ -441,7 +530,7 @@ export function ImageGenerationStep() {
 								onCheckedChange={(checked) => setUseSpecificSeed(!!checked)}
 							/>
 							<Label htmlFor="useSpecificSeed" className="text-sm font-medium">
-								Seed 지정하기
+								Seed 지정하기 (체크 해제 시 각각 랜덤)
 							</Label>
 						</div>
 						{useSpecificSeed && (
@@ -478,17 +567,18 @@ export function ImageGenerationStep() {
 				<Button
 					onClick={handleGenerateImages}
 					disabled={isGenerating || !imagePrompt.trim()}
-					className="px-8 py-2"
+					className="px-8 py-3 text-lg"
+					size="lg"
 				>
 					{isGenerating ? (
 						<>
-							<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+							<div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current mr-2"></div>
 							이미지 생성 중...
 						</>
 					) : (
 						<>
-							<ImageIcon className="h-4 w-4 mr-2" />
-							이미지 생성 (4개)
+							<ImageIcon className="h-5 w-5 mr-2" />
+							이미지 생성
 						</>
 					)}
 				</Button>
@@ -496,7 +586,7 @@ export function ImageGenerationStep() {
 
 			{/* 오류 메시지 */}
 			{error && (
-				<div className="text-red-500 text-sm p-2 bg-red-50 rounded border border-red-200">
+				<div className="text-red-500 text-sm p-3 bg-red-50 rounded border border-red-200">
 					{error}
 				</div>
 			)}
@@ -507,11 +597,11 @@ export function ImageGenerationStep() {
 					<CardHeader>
 						<CardTitle className="text-lg text-green-800 flex items-center gap-2">
 							<Check className="h-5 w-5" />
-							생성된 이미지 ({generatedImages.length}개)
+							생성된 이미지 ({generatedImages.length}개) - 하나를 선택하세요
 						</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<div className="grid grid-cols-2 gap-4">
+						<div className={getGridClass(generatedImages.length)}>
 							{generatedImages.map((image, index) => (
 								<div key={index} className="flex flex-col items-center">
 									<div className="relative group">
@@ -527,8 +617,10 @@ export function ImageGenerationStep() {
 										<img
 											src={image.url}
 											alt={`생성된 이미지 ${index + 1}`}
-											className={`max-w-full max-h-[300px] rounded-md shadow-md cursor-pointer transition-all ${
-												image.selected ? "ring-2 ring-blue-500" : ""
+											className={`w-full max-w-sm max-h-[300px] object-cover rounded-md shadow-md cursor-pointer transition-all hover:shadow-lg ${
+												image.selected
+													? "ring-4 ring-blue-500 ring-offset-2"
+													: "hover:ring-2 hover:ring-gray-300"
 											}`}
 											onClick={() => toggleImageSelection(index)}
 										/>
@@ -536,13 +628,27 @@ export function ImageGenerationStep() {
 									{/* 시드값 표시 */}
 									{image.seed !== undefined &&
 										selectedImageModel === "flux-dev" && (
-											<div className="mt-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+											<div className="mt-2 text-xs text-gray-500 bg-white px-2 py-1 rounded shadow-sm">
 												Seed: {image.seed}
 											</div>
 										)}
 								</div>
 							))}
 						</div>
+
+						{/* 이미지 저장 버튼 */}
+						{generatedImages.some((img) => img.selected) && (
+							<div className="flex justify-center mt-4">
+								<Button
+									onClick={downloadSelectedImage}
+									variant="outline"
+									className="px-6 py-2"
+								>
+									<ImageIcon className="h-4 w-4 mr-2" />
+									이미지 저장
+								</Button>
+							</div>
+						)}
 					</CardContent>
 				</Card>
 			)}
@@ -552,7 +658,8 @@ export function ImageGenerationStep() {
 				<Button
 					onClick={handleComplete}
 					disabled={!generatedImages.some((img) => img.selected)}
-					className="bg-green-600 hover:bg-green-700"
+					className="bg-green-600 hover:bg-green-700 px-8 py-2"
+					size="lg"
 				>
 					<Check className="h-4 w-4 mr-2" />
 					이미지 선택 완료
