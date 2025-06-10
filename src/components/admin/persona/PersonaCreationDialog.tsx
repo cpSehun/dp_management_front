@@ -18,38 +18,10 @@ import { StepIndicator } from "./common/StepIndicator";
 import { ConceptGenerationStep } from "./steps/ConceptGenerationStep";
 import { PersonaInfoStep } from "./steps/PersonaInfoStep";
 import { SummaryAndTagsStep } from "./steps/SummaryAndTagsStep";
+import { ImageGenerationStep } from "./steps/ImageGenerationStep";
+import { FinalReviewStep } from "./steps/FinalReviewStep";
 
-// 임시 4단계 컴포넌트
-function ImageGenerationStep() {
-	const { data } = usePersonaCreation();
-
-	return (
-		<div className="space-y-6">
-			<div className="text-center space-y-4">
-				<h3 className="text-xl font-semibold">
-					4단계: 페르소나 프로필 이미지 생성
-				</h3>
-				<p className="text-gray-600">모든 단계 데이터:</p>
-				<div className="p-4 bg-blue-50 rounded-lg text-left">
-					<p className="font-medium mb-2">컨셉: {data.step1.concept}</p>
-					<p className="text-sm text-gray-600 mb-2">
-						페르소나 정보: {data.step2.personaInfo.substring(0, 100)}...
-					</p>
-				</div>
-				<p className="text-gray-500">4단계 구현 예정...</p>
-			</div>
-
-			<div className="flex justify-end">
-				<Button
-					onClick={() => console.log("페르소나 생성 완료 (구현 예정)")}
-					className="bg-green-600 hover:bg-green-700"
-				>
-					페르소나 생성 완료
-				</Button>
-			</div>
-		</div>
-	);
-}
+// 임시 4단계 컴포넌트 제거됨 - 실제 구현으로 대체
 
 // 메인 다이얼로그 내용 컴포넌트
 function PersonaCreationDialogContent({ onClose }: { onClose: () => void }) {
@@ -65,6 +37,8 @@ function PersonaCreationDialogContent({ onClose }: { onClose: () => void }) {
 				return <SummaryAndTagsStep />;
 			case 4:
 				return <ImageGenerationStep />;
+			case 5:
+				return <FinalReviewStep />;
 			default:
 				return <ConceptGenerationStep />;
 		}
@@ -78,7 +52,7 @@ function PersonaCreationDialogContent({ onClose }: { onClose: () => void }) {
 					페르소나 생성 - {currentStep}단계
 				</DialogTitle>
 				<DialogDescription>
-					총 4단계로 구성된 페르소나 생성 과정입니다.
+					총 5단계로 구성된 페르소나 생성 과정입니다.
 				</DialogDescription>
 			</DialogHeader>
 

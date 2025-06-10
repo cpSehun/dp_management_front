@@ -12,6 +12,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
 		{ number: 2, label: "정보 입력" },
 		{ number: 3, label: "요약/태그" },
 		{ number: 4, label: "이미지 생성" },
+		{ number: 5, label: "최종 확인" },
 	];
 
 	return (
