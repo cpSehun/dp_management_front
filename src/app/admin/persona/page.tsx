@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, KeyboardEvent } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Plus, User } from "lucide-react";
 import {
 	Dialog,
 	DialogContent,
@@ -11,9 +11,8 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-	DialogTrigger,
-	DialogClose,
 } from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
@@ -23,11 +22,11 @@ import {
 	AdminTableBody,
 	AdminTableRow,
 	AdminTableCell,
-	AdminTableLoadingRow,
 	AdminTableEmptyRow,
 } from "@/components/admin/AdminTable";
 import { ActionDropdown, ActionItem } from "@/components/admin/ActionDropdown";
 import { AdminPagination } from "@/components/admin/AdminPagination";
+import { PersonaCreationDialog } from "@/components/admin/persona/PersonaCreationDialog";
 
 // 기존 타입들 유지
 interface Persona {
@@ -43,7 +42,7 @@ interface Persona {
 	createdAt: string;
 }
 
-// 기존 샘플 데이터 유지
+// 기존 샘플 데이터 유지 (추후 DB 연동)
 const initialPersonas: Persona[] = [
 	{
 		id: 1,
@@ -54,7 +53,7 @@ const initialPersonas: Persona[] = [
 		statusMessage: "오늘도 열심히 살아보자!",
 		tags: ["대학생", "취준생", "운동", "게임"],
 		personalityPrompt:
-			"당신은 [분야]의 전문가로서 10년 이상의 경험을 가지고 있습니다. 사용자의 질문에 전문적이고 정확한 정보를 제공하되, 복잡한 내용도 이해하기 쉽게 설명해 주세요.",
+			"당신은 활발하고 사교적인 20대 초반 대학생입니다. 운동과 게임을 좋아하며 항상 긍정적인 에너지를 가지고 있습니다.",
 		createdAt: "2023-08-15T10:30:00Z",
 	},
 	{
@@ -66,20 +65,8 @@ const initialPersonas: Persona[] = [
 		statusMessage: "행복은 일상 속에 있어요",
 		tags: ["직장인", "여행", "요리", "독서"],
 		personalityPrompt:
-			"당신은 경험이 풍부한 심리 상담사입니다. 사용자의 감정을 공감하고 이해하며, 판단하지 않고 도움이 될 수 있는 대화를 제공해 주세요.",
+			"당신은 차분하고 논리적인 30대 후반 직장인 여성입니다. 여행과 요리, 독서를 좋아하며 일상 속 작은 행복을 소중히 여깁니다.",
 		createdAt: "2023-09-05T14:20:00Z",
-	},
-	{
-		id: 3,
-		name: "박민준",
-		ageGroup: "40대 중반",
-		gender: "남성",
-		personality: "신중함, 책임감",
-		statusMessage: "가족과 함께하는 시간이 행복",
-		tags: ["가장", "경영", "골프", "와인"],
-		personalityPrompt:
-			"당신은 [분야]의 전문가로서 10년 이상의 경험을 가지고 있습니다. 사용자의 질문에 전문적이고 정확한 정보를 제공하되, 복잡한 내용도 이해하기 쉽게 설명해 주세요.",
-		createdAt: "2023-07-20T09:15:00Z",
 	},
 ];
 
@@ -102,8 +89,10 @@ export default function PersonaPage() {
 	const [paginatedPersonas, setPaginatedPersonas] = useState<Persona[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 
+	// 페르소나 생성 다이얼로그 상태
+	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
 	// 기존 모달 상태들 유지
-	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [currentPersona, setCurrentPersona] = useState<Persona | null>(null);
 
@@ -145,15 +134,12 @@ export default function PersonaPage() {
 
 	// 페르소나 생성 핸들러
 	const handleCreatePersona = () => {
-		// 기존 생성 로직 유지 (여기서는 간단히 alert)
-		alert("페르소나 생성 다이얼로그를 열어야 합니다.");
+		setIsCreateDialogOpen(true);
 	};
 
 	// 페르소나 수정
 	const handleEditPersona = (persona: Persona) => {
-		setCurrentPersona(persona);
-		// 기존 수정 로직 유지
-		alert(`${persona.name} 수정 다이얼로그를 열어야 합니다.`);
+		alert(`${persona.name} 수정 기능은 구현 예정입니다.`);
 	};
 
 	// 페르소나 삭제 확인
@@ -172,6 +158,18 @@ export default function PersonaPage() {
 			setIsDeleteDialogOpen(false);
 			setCurrentPersona(null);
 		}
+	};
+
+	// 페르소나 생성 완료 핸들러
+	const handlePersonaCreated = (newPersona: any) => {
+		// 실제로는 DB에서 생성된 페르소나를 가져와야 함
+		console.log("새 페르소나 생성됨:", newPersona);
+
+		// 목록 새로고침 (임시)
+		// fetchPersonas();
+
+		setIsCreateDialogOpen(false);
+		alert("페르소나가 성공적으로 생성되었습니다!");
 	};
 
 	// 각 페르소나의 액션 메뉴 생성
@@ -209,16 +207,12 @@ export default function PersonaPage() {
 						<AdminTableHeaderCell>성격</AdminTableHeaderCell>
 						<AdminTableHeaderCell>상태메시지</AdminTableHeaderCell>
 						<AdminTableHeaderCell>태그</AdminTableHeaderCell>
-						<AdminTableHeaderCell>이미지</AdminTableHeaderCell>
-						<AdminTableHeaderCell>페르소나 프롬프트</AdminTableHeaderCell>
 						<AdminTableHeaderCell>생성일</AdminTableHeaderCell>
 						<AdminTableHeaderCell className="text-right">
 							관리
 						</AdminTableHeaderCell>
 					</AdminTableHeader>
-					<AdminTableBody>
-						<AdminTableLoadingRow colSpan={10} />
-					</AdminTableBody>
+					<AdminTableBody>{/* 로딩 행 표시 */}</AdminTableBody>
 				</AdminTable>
 			</AdminPageLayout>
 		);
@@ -243,8 +237,6 @@ export default function PersonaPage() {
 					<AdminTableHeaderCell>성격</AdminTableHeaderCell>
 					<AdminTableHeaderCell>상태메시지</AdminTableHeaderCell>
 					<AdminTableHeaderCell>태그</AdminTableHeaderCell>
-					<AdminTableHeaderCell>이미지</AdminTableHeaderCell>
-					<AdminTableHeaderCell>페르소나 프롬프트</AdminTableHeaderCell>
 					<AdminTableHeaderCell>생성일</AdminTableHeaderCell>
 					<AdminTableHeaderCell className="text-right">
 						관리
@@ -253,7 +245,7 @@ export default function PersonaPage() {
 				<AdminTableBody>
 					{paginatedPersonas.length === 0 ? (
 						<AdminTableEmptyRow
-							colSpan={10}
+							colSpan={8}
 							message={
 								searchTerm
 									? "검색 결과가 없습니다."
@@ -288,26 +280,6 @@ export default function PersonaPage() {
 										)}
 									</div>
 								</AdminTableCell>
-								<AdminTableCell>
-									<div className="flex justify-center">
-										{persona.imagePrompt ? (
-											<div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-												<div className="w-2 h-2 bg-green-500 rounded-full"></div>
-											</div>
-										) : (
-											<span className="text-gray-400 text-xs">없음</span>
-										)}
-									</div>
-								</AdminTableCell>
-								<AdminTableCell>
-									{persona.personalityPrompt ? (
-										<Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200">
-											설정됨
-										</Badge>
-									) : (
-										<span className="text-gray-400 text-xs">없음</span>
-									)}
-								</AdminTableCell>
 								<AdminTableCell>{formatDate(persona.createdAt)}</AdminTableCell>
 								<AdminTableCell className="text-right">
 									<ActionDropdown actions={getPersonaActions(persona)} />
@@ -327,6 +299,13 @@ export default function PersonaPage() {
 					onPageChange={handlePageChange}
 				/>
 			)}
+
+			{/* 페르소나 생성 다이얼로그 */}
+			<PersonaCreationDialog
+				isOpen={isCreateDialogOpen}
+				onClose={() => setIsCreateDialogOpen(false)}
+				onPersonaCreated={handlePersonaCreated}
+			/>
 
 			{/* 삭제 확인 다이얼로그 */}
 			<Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
