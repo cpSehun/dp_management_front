@@ -146,7 +146,6 @@ export default function ImageGeneratorPage() {
 				if (response.ok) {
 					const data = await response.json();
 					setModels(data);
-					console.log("사용 가능한 모델:", data);
 				} else {
 					console.error("모델 목록을 가져오는데 실패했습니다");
 				}
@@ -187,10 +186,6 @@ export default function ImageGeneratorPage() {
 				}
 
 				const responseData: PaginatedPromptsResponse = await response.json();
-				console.log(
-					"Raw API responseData:",
-					JSON.stringify(responseData, null, 2)
-				);
 
 				if (
 					!responseData ||
@@ -228,10 +223,6 @@ export default function ImageGeneratorPage() {
 					};
 				});
 
-				console.log(
-					"Processed fetchedPrompts:",
-					JSON.stringify(fetchedPrompts, null, 2)
-				);
 				setImagePrompts(fetchedPrompts);
 				setFilteredImagePrompts(fetchedPrompts);
 			} catch (error) {

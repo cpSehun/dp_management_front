@@ -25,7 +25,7 @@ export async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 	// 클라이언트 사이드(브라우저)에서 실행될 때
 	else {
 		// 클라이언트 사이드 로그는 제거 (브라우저 콘솔에 출력되지 않음)
-		baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || window.location.origin;
+		baseURL = process.env.NEXT_PUBLIC_FRONTED_URL || window.location.origin;
 		const url = endpoint.startsWith("/")
 			? `${baseURL}${endpoint}`
 			: `${baseURL}/${endpoint}`;

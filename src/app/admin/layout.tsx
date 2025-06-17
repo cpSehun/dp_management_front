@@ -40,7 +40,6 @@ export default function AdminLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	console.log("--- AdminLayout FUNCTION EXECUTION (SERVER-SIDE if SSR) ---");
 	const router = useRouter();
 	const pathname = usePathname();
 	const [username, setUsername] = useState<string | null>(null);
@@ -72,7 +71,6 @@ export default function AdminLayout({
 					return;
 				}
 				const isExpired = payload.exp * 1000 < Date.now();
-				console.log("[Layout Effect] Token expired?", isExpired);
 				if (isExpired) {
 					console.log(
 						"[Layout Effect] Token expired, removing token and redirecting."

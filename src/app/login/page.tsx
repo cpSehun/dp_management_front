@@ -85,7 +85,7 @@ export default function LoginPage() {
 					onClick={() => {
 						// 환경 변수 또는 현재 위치 기반으로 URL 생성
 						const baseURL =
-							process.env.NEXT_PUBLIC_API_BASE_URL ||
+							process.env.NEXT_PUBLIC_FRONTED_URL ||
 							(typeof window !== "undefined" ? window.location.origin : "");
 						const googleLoginUrl = `${baseURL}/api/v1/auth/google/login`;
 

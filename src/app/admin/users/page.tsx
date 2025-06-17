@@ -50,8 +50,6 @@ import { AdminPagination } from "@/components/admin/AdminPagination";
 import { fetchAPI } from "@/utils/api";
 import { toast } from "sonner";
 
-console.log("--- AdminUsersPage.tsx SERVER-SIDE LOG (file top) ---");
-
 // 사용자 데이터 타입을 정의 (백엔드 schemas.User 참고)
 interface User {
 	id: number;
@@ -67,7 +65,6 @@ interface User {
 const ITEMS_PER_PAGE = 10;
 
 export default function AdminUsersPage() {
-	console.log("--- AdminUsersPage FUNCTION EXECUTION (SERVER-SIDE if SSR) ---");
 	const [users, setUsers] = useState<User[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -101,15 +98,12 @@ export default function AdminUsersPage() {
 			try {
 				const token = localStorage.getItem("access_token");
 				if (!token) return;
-
-				console.log("현재 사용자 정보 요청 중...");
 				const response = await fetchAPI("/api/v1/users/me", {
 					headers: { Authorization: `Bearer ${token}` },
 				});
 
 				if (response.ok) {
 					const userData = await response.json();
-					console.log("현재 사용자 정보:", userData);
 					setCurrentUser(userData);
 					setIsCurrentUserSuperuser(userData.is_superuser || false);
 				} else {
@@ -172,7 +166,6 @@ export default function AdminUsersPage() {
 
 	useEffect(() => {
 		const fetchUsers = async () => {
-			console.log("fetchUsers function started");
 			const token = localStorage.getItem("access_token");
 			if (!token) {
 				console.log("No token found, returning early.");
@@ -182,11 +175,12 @@ export default function AdminUsersPage() {
 			}
 
 			try {
-				console.log("Trying direct fetch to localhost:8000...");
+
+				const NEXT_PUBLIC_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 				// 테스트: 백엔드로 직접 요청 시도
 				const directResponse = await fetch(
-					"http://localhost:8000/api/v1/users/",
+					`${NEXT_PUBLIC_API_BASE_URL}/api/v1/users/`,
 					{
 						headers: { Authorization: `Bearer ${token}` },
 					}
