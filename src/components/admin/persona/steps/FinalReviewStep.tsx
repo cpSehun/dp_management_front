@@ -12,62 +12,101 @@ export function FinalReviewStep() {
 	const [saveSuccess, setSaveSuccess] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	// 선택된 이미지 찾기
-	const selectedImage = data.step4.generatedImages.find(
-		(_, index) =>
-			index ===
-			data.step4.generatedImages.findIndex(
-				(url) => url === data.step4.selectedImage
-			)
-	);
+	// 페르소나 정보에서 이름 추출 함수
+	const extractNameFromPersonaInfo = (personaInfo: string): string => {
+		const lines = personaInfo.split("\n");
+		for (const line of lines) {
+			if (line.includes("이름:")) {
+				return line.replace("이름:", "").trim();
+			}
+		}
+		return "Unknown";
+	};
 
-	// DB에 저장 (추후 구현 예정)
+	// 페르소나 정보에서 첫 대사 및 지문 부분 추출 함수
+	const extractChatOpening = (personaInfo: string): string => {
+		const sections = personaInfo.split("#");
+		for (const section of sections) {
+			if (section.includes("첫 대사 및 지문")) {
+				return section.replace("첫 대사 및 지문", "").trim();
+			}
+		}
+		return "";
+	};
+
+	// 페르소나 정보에서 배경설정 부분 추출 함수
+	const extractBackground = (personaInfo: string): string => {
+		const sections = personaInfo.split("#");
+		for (const section of sections) {
+			if (section.includes("배경 설정") || section.includes("배경설정")) {
+				return section.replace(/배경\s*설정/, "").trim();
+			}
+		}
+		return "";
+	};
+
+	// 첫 대사 및 지문 부분을 제외한 페르소나 정보 생성
+	const extractLLMPrompt = (personaInfo: string): string => {
+		const sections = personaInfo.split("#");
+		const filteredSections = sections.filter(
+			(section) => !section.includes("첫 대사 및 지문")
+		);
+		return filteredSections.join("#").trim();
+	};
+
+	// DB에 저장 (선택된 이미지의 job_id 사용)
 	const handleSaveToDatabase = async () => {
 		setIsSaving(true);
 		setError(null);
 		setSaveSuccess(false);
 
 		try {
-			// TODO: 실제 DB 저장 API 호출 구현 예정
+			// 선택된 이미지의 job_id 가져오기
+			const selectedImageJobId = data.step4.selectedImageJobId;
 
-			// 임시로 콘솔에 데이터 출력
+			// job_id가 없는 경우 에러
+			if (!selectedImageJobId) {
+				throw new Error("선택된 이미지의 ID를 찾을 수 없습니다.");
+			}
+
 			console.log("=== 페르소나 생성 완료 데이터 ===");
+			console.log("선택된 이미지 Job ID:", selectedImageJobId);
 			console.log("1단계 - 컨셉:", data.step1);
 			console.log("2단계 - 페르소나 정보:", data.step2);
 			console.log("3단계 - 요약/태그:", data.step3);
 			console.log("4단계 - 이미지:", data.step4);
 
-			// 임시 지연 (실제 API 호출 시뮬레이션)
-			await new Promise((resolve) => setTimeout(resolve, 2000));
+			const response = await fetch("/api/v1/personas", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+				},
+				body: JSON.stringify({
+					id: selectedImageJobId, // 선택된 이미지의 job_id를 id로 사용
+					type: data.step1.personaType.toUpperCase(), // CHAR or STORY
+					name: extractNameFromPersonaInfo(data.step2.personaInfo),
+					user_id: null,
+					status: "INACTIVE",
+					model_id: "google/gemini-2.0-flash-001", // 고정값
+					tags: data.step3.tags,
+					properties: null,
+					summary: data.step3.summary,
+					llm_prompt: extractLLMPrompt(data.step2.personaInfo),
+					chat_opening: extractChatOpening(data.step2.personaInfo),
+					background: extractBackground(data.step2.personaInfo),
+				}),
+			});
 
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.detail || "페르소나 저장에 실패했습니다.");
+			}
+
+			const savedPersona = await response.json();
 			setSaveSuccess(true);
 
-			// TODO: 실제 구현 시에는 아래와 같은 API 호출 예정
-			/*
-      const response = await fetch("/api/v1/personas", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-        body: JSON.stringify({
-          type: data.step1.personaType.toUpperCase(), // CHAR or STORY
-          name: extractNameFromPersonaInfo(data.step2.personaInfo),
-          llm_prompt: data.step2.personaInfo,
-          summary: data.step3.summary,
-          tags: data.step3.tags,
-          selectedImageUrl: data.step4.selectedImage,
-          // 기타 필요한 필드들...
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("페르소나 저장에 실패했습니다.");
-      }
-
-      const savedPersona = await response.json();
-      setSaveSuccess(true);
-      */
+			console.log("페르소나 저장 성공:", savedPersona);
 		} catch (error) {
 			console.error("페르소나 저장 오류:", error);
 			setError(
@@ -90,6 +129,31 @@ export function FinalReviewStep() {
 					생성된 페르소나의 모든 정보를 확인하고 저장하세요.
 				</p>
 			</div>
+
+			{/* 선택된 이미지 Job ID 표시 카드 */}
+			{data.step4.selectedImageJobId && (
+				<Card className="border-purple-200 bg-purple-50">
+					<CardHeader>
+						<CardTitle className="text-lg text-purple-800 flex items-center gap-2">
+							<div className="flex items-center gap-2">
+								<span className="text-purple-600 font-mono">🔑</span>
+								선택된 이미지 ID (Job ID)
+							</div>
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="p-3 bg-white rounded-md border">
+							<code className="text-sm text-purple-700 font-mono break-all">
+								{data.step4.selectedImageJobId}
+							</code>
+						</div>
+						<p className="text-xs text-purple-600 mt-2">
+							이 Job ID는 데이터베이스에 저장되며, 이미지 파일명으로도
+							사용됩니다.
+						</p>
+					</CardContent>
+				</Card>
+			)}
 
 			{/* 1단계: 컨셉 */}
 			<Card>
@@ -217,7 +281,7 @@ export function FinalReviewStep() {
 			<div className="flex justify-center pt-4">
 				<Button
 					onClick={handleSaveToDatabase}
-					disabled={isSaving || saveSuccess}
+					disabled={isSaving || saveSuccess || !data.step4.selectedImageJobId}
 					className="px-8 py-3 text-lg bg-blue-600 hover:bg-blue-700"
 					size="lg"
 				>

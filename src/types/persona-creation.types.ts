@@ -21,6 +21,7 @@ export interface Step4Data {
 	imagePrompt: string;
 	generatedImages: string[];
 	selectedImage: string;
+	selectedImageJobId?: string; // 선택된 이미지의 job_id 추가
 }
 
 export interface PersonaCreationData {

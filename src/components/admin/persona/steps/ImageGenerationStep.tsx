@@ -1,18 +1,20 @@
-import React, { useState } from "react";
+// src/components/admin/persona/steps/ImageGenerationStep.tsx
+
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Check, Image as ImageIcon } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Check, RefreshCw, ImageIcon, Loader } from "lucide-react";
 
 import { usePersonaCreation } from "../common/PersonaCreationContext";
 import { LLMGenerationButton } from "../common/LLMGenerationButton";
 import { PERSONA_PROMPTS, formatPrompt } from "@/constants/persona-prompts";
 
-// 생성된 이미지 타입 정의
-interface GeneratedImage {
+// 이미지 데이터 타입 (job_id 포함)
+interface GeneratedImageWithJobId {
 	url: string;
 	filename?: string;
 	original_url?: string;
@@ -22,6 +24,7 @@ interface GeneratedImage {
 	prompt: string;
 	modelName: string;
 	is_base64: boolean;
+	job_id?: string; // job_id 추가
 }
 
 export function ImageGenerationStep() {
@@ -31,25 +34,23 @@ export function ImageGenerationStep() {
 		data.step4.imageDescription || data.step2.personaInfo || ""
 	);
 	const [imagePrompt, setImagePrompt] = useState(data.step4.imagePrompt || "");
+	const [generatedImages, setGeneratedImages] = useState<
+		GeneratedImageWithJobId[]
+	>([]);
+	const [isGenerating, setIsGenerating] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	// 이미지 생성 설정
 	const [selectedImageModel, setSelectedImageModel] = useState<
 		"flux-dev" | "gpt-image-1"
 	>("flux-dev");
-
-	// 이미지 개수 선택 상태 추가 (기본값 1개)
 	const [batchSize, setBatchSize] = useState(1);
-
-	// 이미지 생성 설정 (flux-dev용)
-	const [seed, setSeed] = useState<number | null>(() =>
+	const [seed, setSeed] = useState<number>(() =>
 		Math.floor(Math.random() * 4294967295)
 	);
 	const [useSpecificSeed, setUseSpecificSeed] = useState(false);
 	const [steps, setSteps] = useState(40);
 	const [useSpecificSteps, setUseSpecificSteps] = useState(false);
-
-	// 이미지 생성 상태
-	const [isGenerating, setIsGenerating] = useState(false);
-	const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
-	const [error, setError] = useState<string | null>(null);
 
 	// 이미지 프롬프트 자동 생성
 	const handleGenerateImagePrompt = async () => {
@@ -57,7 +58,7 @@ export function ImageGenerationStep() {
 		const { personaInfo } = data.step2;
 
 		if (!personaInfo.trim()) {
-			throw new Error("페르소나 정보가 필요합니다.");
+			throw new Error("2단계에서 페르소나 정보를 먼저 생성해주세요.");
 		}
 
 		const prompt = formatPrompt(PERSONA_PROMPTS.IMAGE_PROMPT_GENERATION, {
@@ -73,7 +74,7 @@ export function ImageGenerationStep() {
 			body: JSON.stringify({
 				model: model,
 				prompt: prompt,
-				max_tokens: 1024,
+				max_tokens: 200,
 				temperature: 0.7,
 			}),
 		});
@@ -110,10 +111,9 @@ export function ImageGenerationStep() {
 		);
 	};
 
-	// 이미지 다운로드 함수
+	// 이미지 다운로드 함수 (job_id 사용)
 	const downloadSelectedImage = async () => {
 		const selectedImage = generatedImages.find((img) => img.selected);
-		// uuid 관련 로직 제거
 
 		if (!selectedImage) return;
 
@@ -150,9 +150,10 @@ export function ImageGenerationStep() {
 				imageBlob = await response.blob();
 			}
 
-			// 파일명 생성 (페르소나 이름이나 타임스탬프 사용) - 원래 로직으로 복원
-			const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-			const filename = `persona_image_${timestamp}.png`;
+			// job_id를 파일명으로 사용
+			const filename = selectedImage.job_id
+				? `${selectedImage.job_id}.png`
+				: `image_${Date.now()}.png`;
 
 			// 다운로드 실행
 			const url = window.URL.createObjectURL(imageBlob);
@@ -184,7 +185,7 @@ export function ImageGenerationStep() {
 		}
 	};
 
-	// 이미지 생성
+	// 이미지 생성 (job_id 지원)
 	const handleGenerateImages = async () => {
 		if (!imagePrompt.trim()) {
 			setError("이미지 프롬프트를 입력해주세요.");
@@ -200,108 +201,61 @@ export function ImageGenerationStep() {
 			const timeoutId = setTimeout(() => controller.abort(), 300000); // 5분 타임아웃
 
 			if (selectedImageModel === "flux-dev") {
-				if (useSpecificSeed) {
-					// 특정 시드 사용
+				// 각 이미지마다 별도 API 호출 (개별 job_id 생성)
+				const apiCalls = [];
+				const seedValues = [];
+
+				for (let i = 0; i < batchSize; i++) {
+					const randomSeed = useSpecificSeed
+						? seed
+						: Math.floor(Math.random() * 4294967295);
+					seedValues.push(randomSeed);
+
 					const requestData = {
 						prompt: imagePrompt,
-						batch_size: batchSize,
+						batch_size: 1, // 개별 생성
 						model: selectedImageModel,
 						steps: useSpecificSteps ? steps : 40,
-						seed: seed,
+						seed: randomSeed,
 						save_to_backend: false,
 					};
 
-					const response = await fetch("/api/v1/image-generator/generate", {
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-							Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-						},
-						body: JSON.stringify(requestData),
-						signal: controller.signal,
-					});
-
-					clearTimeout(timeoutId);
-					const result = await response.json();
-
-					if (!response.ok) {
-						throw new Error(
-							result.detail || "이미지 생성 요청이 실패했습니다."
-						);
-					}
-
-					if (result.success) {
-						const imagesWithMetadata = (result.images || []).map(
-							(img: any) => ({
-								...img,
-								selected: false,
-								prompt: imagePrompt,
-								modelName: selectedImageModel,
-								steps: useSpecificSteps ? steps : 40,
-								seed: seed,
-								is_base64: false,
-							})
-						);
-						setGeneratedImages(imagesWithMetadata);
-					} else {
-						throw new Error(result.error || "알 수 없는 오류가 발생했습니다.");
-					}
-				} else {
-					// 랜덤 시드 사용 (각 이미지마다 다른 시드)
-					const apiCalls = [];
-					const seedValues = [];
-
-					for (let i = 0; i < batchSize; i++) {
-						const randomSeed = Math.floor(Math.random() * 4294967295);
-						seedValues.push(randomSeed);
-
-						const requestData = {
-							prompt: imagePrompt,
-							batch_size: 1,
-							model: selectedImageModel,
-							steps: useSpecificSteps ? steps : 40,
-							seed: randomSeed,
-							save_to_backend: false,
-						};
-
-						apiCalls.push(
-							fetch("/api/v1/image-generator/generate", {
-								method: "POST",
-								headers: {
-									"Content-Type": "application/json",
-									Authorization: `Bearer ${localStorage.getItem(
-										"access_token"
-									)}`,
-								},
-								body: JSON.stringify(requestData),
-								signal: controller.signal,
-							}).then((response) => response.json())
-						);
-					}
-
-					const results = await Promise.all(apiCalls);
-					clearTimeout(timeoutId);
-
-					const generatedImagesData = [];
-					for (let i = 0; i < results.length; i++) {
-						const result = results[i];
-						if (result.success && result.images && result.images.length > 0) {
-							const img = result.images[0];
-							generatedImagesData.push({
-								...img,
-								selected: false,
-								prompt: imagePrompt,
-								modelName: selectedImageModel,
-								seed: seedValues[i],
-								steps: useSpecificSteps ? steps : 40,
-								is_base64: false,
-							});
-						}
-					}
-					setGeneratedImages(generatedImagesData);
+					apiCalls.push(
+						fetch("/api/v1/image-generator/generate", {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+							},
+							body: JSON.stringify(requestData),
+							signal: controller.signal,
+						}).then((response) => response.json())
+					);
 				}
+
+				const results = await Promise.all(apiCalls);
+				clearTimeout(timeoutId);
+
+				const generatedImagesData: GeneratedImageWithJobId[] = [];
+				for (let i = 0; i < results.length; i++) {
+					const result = results[i];
+					if (result.success && result.images && result.images.length > 0) {
+						const img = result.images[0];
+						generatedImagesData.push({
+							...img,
+							selected: false,
+							prompt: imagePrompt,
+							modelName: selectedImageModel,
+							seed: seedValues[i],
+							steps: useSpecificSteps ? steps : 40,
+							is_base64: false,
+							job_id: result.job_id, // job_id 저장
+						});
+					}
+				}
+				setGeneratedImages(generatedImagesData);
 			} else {
-				// GPT-Image-1
+				// GPT-Image-1의 경우
 				const requestData = {
 					prompt: imagePrompt,
 					batch_size: batchSize,
@@ -337,6 +291,7 @@ export function ImageGenerationStep() {
 						is_base64:
 							selectedImageModel === "gpt-image-1" &&
 							img.url?.startsWith("data:image"),
+						job_id: result.job_id, // GPT도 job_id 저장
 					}));
 					setGeneratedImages(imagesWithSelection);
 				} else {
@@ -362,7 +317,7 @@ export function ImageGenerationStep() {
 		}
 	};
 
-	// 4단계 완료
+	// 4단계 완료 (job_id 포함)
 	const handleComplete = () => {
 		const selectedImage = generatedImages.find((img) => img.selected);
 
@@ -371,15 +326,16 @@ export function ImageGenerationStep() {
 			return;
 		}
 
-		// 4단계 데이터 저장
+		// 4단계 데이터 저장 (job_id 포함)
 		updateData("step4", {
 			imageDescription,
 			imagePrompt,
 			generatedImages: generatedImages.map((img) => img.url),
 			selectedImage: selectedImage.url,
+			selectedImageJobId: selectedImage.job_id, // job_id 저장
 		});
 
-		// 5단계(최종 확인)로 이동
+		// 5단계로 이동
 		setCurrentStep(5);
 	};
 
@@ -472,7 +428,7 @@ export function ImageGenerationStep() {
 									onClick={() =>
 										setSelectedImageModel(model as "flux-dev" | "gpt-image-1")
 									}
-									size="sm"
+									className="text-sm"
 								>
 									{model}
 								</Button>
@@ -480,122 +436,116 @@ export function ImageGenerationStep() {
 						</div>
 					</div>
 
-					{/* 이미지 개수 선택 */}
+					{/* 생성 개수 */}
 					<div>
-						<Label className="text-sm font-medium mb-3 block">
-							생성할 이미지 개수
-						</Label>
-						<div className="flex gap-2">
-							{[1, 2, 3, 4].map((count) => (
-								<Button
-									key={count}
-									type="button"
-									variant={batchSize === count ? "default" : "outline"}
-									onClick={() => setBatchSize(count)}
-									size="sm"
-									className="min-w-[2.5rem]"
-								>
-									{count}
-								</Button>
-							))}
-						</div>
+						<Label className="text-sm font-medium mb-2 block">생성 개수</Label>
+						<Input
+							type="number"
+							min="1"
+							max="4"
+							value={batchSize}
+							onChange={(e) =>
+								setBatchSize(
+									Math.max(1, Math.min(4, parseInt(e.target.value) || 1))
+								)
+							}
+							className="w-20"
+						/>
+					</div>
+
+					{/* Flux-dev 전용 설정 */}
+					{selectedImageModel === "flux-dev" && (
+						<>
+							{/* 시드 설정 */}
+							<div className="space-y-2">
+								<div className="flex items-center gap-2">
+									<input
+										type="checkbox"
+										id="useSpecificSeed"
+										checked={useSpecificSeed}
+										onChange={(e) => setUseSpecificSeed(e.target.checked)}
+										className="rounded"
+									/>
+									<Label
+										htmlFor="useSpecificSeed"
+										className="text-sm font-medium"
+									>
+										특정 시드 사용
+									</Label>
+								</div>
+								{useSpecificSeed && (
+									<div className="flex gap-2">
+										<Input
+											type="number"
+											value={seed}
+											onChange={(e) => setSeed(parseInt(e.target.value) || 0)}
+											className="flex-1"
+										/>
+										<Button
+											type="button"
+											variant="outline"
+											onClick={handleRandomSeed}
+											className="text-sm"
+										>
+											랜덤
+										</Button>
+									</div>
+								)}
+							</div>
+
+							{/* 스텝 설정 */}
+							<div className="space-y-2">
+								<div className="flex items-center gap-2">
+									<input
+										type="checkbox"
+										id="useSpecificSteps"
+										checked={useSpecificSteps}
+										onChange={(e) => setUseSpecificSteps(e.target.checked)}
+										className="rounded"
+									/>
+									<Label
+										htmlFor="useSpecificSteps"
+										className="text-sm font-medium"
+									>
+										특정 스텝 사용
+									</Label>
+								</div>
+								{useSpecificSteps && (
+									<Input
+										type="number"
+										min="1"
+										max="100"
+										value={steps}
+										onChange={(e) => setSteps(parseInt(e.target.value) || 40)}
+										className="w-24"
+									/>
+								)}
+							</div>
+						</>
+					)}
+
+					{/* 이미지 생성 버튼 */}
+					<div className="flex justify-center">
+						<Button
+							onClick={handleGenerateImages}
+							disabled={isGenerating || !imagePrompt.trim()}
+							className="px-8 py-2"
+						>
+							{isGenerating ? (
+								<>
+									<Loader className="h-4 w-4 mr-2 animate-spin" />
+									이미지 생성 중...
+								</>
+							) : (
+								<>
+									<ImageIcon className="h-4 w-4 mr-2" />
+									이미지 생성
+								</>
+							)}
+						</Button>
 					</div>
 				</CardContent>
 			</Card>
-
-			{/* 고급 설정 (flux-dev만) */}
-			{selectedImageModel === "flux-dev" && (
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-lg">고급 설정 (Flux-dev 전용)</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						{/* 스텝 설정 */}
-						<div className="flex items-center space-x-2">
-							<Checkbox
-								id="useSpecificSteps"
-								checked={useSpecificSteps}
-								onCheckedChange={(checked: boolean) => setUseSpecificSteps(!!checked)}
-							/>
-							<Label htmlFor="useSpecificSteps" className="text-sm font-medium">
-								Step 지정하기 (기본: 40)
-							</Label>
-						</div>
-						{useSpecificSteps && (
-							<div>
-								<Label className="text-sm font-medium">스텝 값</Label>
-								<Input
-									type="number"
-									min="1"
-									max="100"
-									value={steps}
-									onChange={(e) => setSteps(parseInt(e.target.value))}
-									className="w-full mt-1"
-								/>
-							</div>
-						)}
-
-						{/* 시드 설정 */}
-						<div className="flex items-center space-x-2">
-							<Checkbox
-								id="useSpecificSeed"
-								checked={useSpecificSeed}
-								onCheckedChange={(checked: boolean) => setUseSpecificSeed(!!checked)}
-							/>
-							<Label htmlFor="useSpecificSeed" className="text-sm font-medium">
-								Seed 지정하기 (체크 해제 시 각각 랜덤)
-							</Label>
-						</div>
-						{useSpecificSeed && (
-							<div>
-								<Label className="text-sm font-medium">시드 값</Label>
-								<div className="flex mt-1">
-									<Input
-										type="number"
-										value={seed !== null ? seed : ""}
-										onChange={(e) =>
-											setSeed(e.target.value ? parseInt(e.target.value) : null)
-										}
-										className="flex-1 rounded-r-none"
-										placeholder="시드 값 입력"
-									/>
-									<Button
-										type="button"
-										onClick={handleRandomSeed}
-										variant="outline"
-										className="rounded-l-none"
-										title="랜덤 시드 생성"
-									>
-										🎲
-									</Button>
-								</div>
-							</div>
-						)}
-					</CardContent>
-				</Card>
-			)}
-
-			{/* 이미지 생성 버튼 */}
-			<div className="flex justify-center">
-				<Button
-					onClick={handleGenerateImages}
-					disabled={isGenerating || !imagePrompt.trim()}
-					className="px-8 py-3 text-lg"
-					size="lg"
-				>
-					{isGenerating ? (
-						<>
-							<div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current mr-2"></div>
-							이미지 생성 중...
-						</>
-					) : (
-						<>
-							<ImageIcon className="h-5 w-5 mr-2" />
-							이미지 생성
-						</>
-					)}
-				</Button>
-			</div>
 
 			{/* 오류 메시지 */}
 			{error && (
@@ -604,33 +554,21 @@ export function ImageGenerationStep() {
 				</div>
 			)}
 
-			{/* 생성된 이미지들 */}
+			{/* 생성된 이미지 표시 */}
 			{generatedImages.length > 0 && (
-				<Card className="border-green-200 bg-green-50">
+				<Card>
 					<CardHeader>
-						<CardTitle className="text-lg text-green-800 flex items-center gap-2">
-							<Check className="h-5 w-5" />
-							생성된 이미지 ({generatedImages.length}개) - 하나를 선택하세요
-						</CardTitle>
+						<CardTitle className="text-lg">생성된 이미지</CardTitle>
 					</CardHeader>
 					<CardContent>
 						<div className={getGridClass(generatedImages.length)}>
 							{generatedImages.map((image, index) => (
-								<div key={index} className="flex flex-col items-center">
+								<div key={index} className="relative">
 									<div className="relative group">
-										<div
-											className="absolute top-2 left-2 z-10"
-											onClick={() => toggleImageSelection(index)}
-										>
-											<Checkbox
-												checked={image.selected}
-												className="h-5 w-5 border-2 bg-white data-[state=checked]:bg-blue-500"
-											/>
-										</div>
 										<img
 											src={image.url}
-											alt={`생성된 이미지 ${index + 1}`}
-											className={`w-full max-w-sm max-h-[300px] object-cover rounded-md shadow-md cursor-pointer transition-all hover:shadow-lg ${
+											alt={`Generated image ${index + 1}`}
+											className={`w-full h-auto rounded-lg border-2 cursor-pointer transition-all duration-200 ${
 												image.selected
 													? "ring-4 ring-blue-500 ring-offset-2"
 													: "hover:ring-2 hover:ring-gray-300"
@@ -645,6 +583,12 @@ export function ImageGenerationStep() {
 												Seed: {image.seed}
 											</div>
 										)}
+									{/* Job ID 표시 */}
+									{image.job_id && (
+										<div className="mt-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded shadow-sm">
+											Job ID: {image.job_id.substring(0, 8)}...
+										</div>
+									)}
 								</div>
 							))}
 						</div>
