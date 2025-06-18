@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Check, RefreshCw, ImageIcon, Loader } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Check, RefreshCw, ImageIcon } from "lucide-react";
 
 import { usePersonaCreation } from "../common/PersonaCreationContext";
 import { LLMGenerationButton } from "../common/LLMGenerationButton";
@@ -45,7 +46,7 @@ export function ImageGenerationStep() {
 		"flux-dev" | "gpt-image-1"
 	>("flux-dev");
 	const [batchSize, setBatchSize] = useState(1);
-	const [seed, setSeed] = useState<number>(() =>
+	const [seed, setSeed] = useState<number | null>(() =>
 		Math.floor(Math.random() * 4294967295)
 	);
 	const [useSpecificSeed, setUseSpecificSeed] = useState(false);
@@ -206,9 +207,10 @@ export function ImageGenerationStep() {
 				const seedValues = [];
 
 				for (let i = 0; i < batchSize; i++) {
-					const randomSeed = useSpecificSeed
-						? seed
-						: Math.floor(Math.random() * 4294967295);
+					const randomSeed =
+						useSpecificSeed && seed !== null
+							? seed
+							: Math.floor(Math.random() * 4294967295);
 					seedValues.push(randomSeed);
 
 					const requestData = {
@@ -428,7 +430,7 @@ export function ImageGenerationStep() {
 									onClick={() =>
 										setSelectedImageModel(model as "flux-dev" | "gpt-image-1")
 									}
-									className="text-sm"
+									size="sm"
 								>
 									{model}
 								</Button>
@@ -436,116 +438,125 @@ export function ImageGenerationStep() {
 						</div>
 					</div>
 
-					{/* 생성 개수 */}
+					{/* 이미지 개수 선택 - 버튼 형태 */}
 					<div>
-						<Label className="text-sm font-medium mb-2 block">생성 개수</Label>
-						<Input
-							type="number"
-							min="1"
-							max="4"
-							value={batchSize}
-							onChange={(e) =>
-								setBatchSize(
-									Math.max(1, Math.min(4, parseInt(e.target.value) || 1))
-								)
-							}
-							className="w-20"
-						/>
-					</div>
-
-					{/* Flux-dev 전용 설정 */}
-					{selectedImageModel === "flux-dev" && (
-						<>
-							{/* 시드 설정 */}
-							<div className="space-y-2">
-								<div className="flex items-center gap-2">
-									<input
-										type="checkbox"
-										id="useSpecificSeed"
-										checked={useSpecificSeed}
-										onChange={(e) => setUseSpecificSeed(e.target.checked)}
-										className="rounded"
-									/>
-									<Label
-										htmlFor="useSpecificSeed"
-										className="text-sm font-medium"
-									>
-										특정 시드 사용
-									</Label>
-								</div>
-								{useSpecificSeed && (
-									<div className="flex gap-2">
-										<Input
-											type="number"
-											value={seed}
-											onChange={(e) => setSeed(parseInt(e.target.value) || 0)}
-											className="flex-1"
-										/>
-										<Button
-											type="button"
-											variant="outline"
-											onClick={handleRandomSeed}
-											className="text-sm"
-										>
-											랜덤
-										</Button>
-									</div>
-								)}
-							</div>
-
-							{/* 스텝 설정 */}
-							<div className="space-y-2">
-								<div className="flex items-center gap-2">
-									<input
-										type="checkbox"
-										id="useSpecificSteps"
-										checked={useSpecificSteps}
-										onChange={(e) => setUseSpecificSteps(e.target.checked)}
-										className="rounded"
-									/>
-									<Label
-										htmlFor="useSpecificSteps"
-										className="text-sm font-medium"
-									>
-										특정 스텝 사용
-									</Label>
-								</div>
-								{useSpecificSteps && (
-									<Input
-										type="number"
-										min="1"
-										max="100"
-										value={steps}
-										onChange={(e) => setSteps(parseInt(e.target.value) || 40)}
-										className="w-24"
-									/>
-								)}
-							</div>
-						</>
-					)}
-
-					{/* 이미지 생성 버튼 */}
-					<div className="flex justify-center">
-						<Button
-							onClick={handleGenerateImages}
-							disabled={isGenerating || !imagePrompt.trim()}
-							className="px-8 py-2"
-						>
-							{isGenerating ? (
-								<>
-									<Loader className="h-4 w-4 mr-2 animate-spin" />
-									이미지 생성 중...
-								</>
-							) : (
-								<>
-									<ImageIcon className="h-4 w-4 mr-2" />
-									이미지 생성
-								</>
-							)}
-						</Button>
+						<Label className="text-sm font-medium mb-3 block">
+							생성할 이미지 개수
+						</Label>
+						<div className="flex gap-2">
+							{[1, 2, 3, 4].map((count) => (
+								<Button
+									key={count}
+									type="button"
+									variant={batchSize === count ? "default" : "outline"}
+									onClick={() => setBatchSize(count)}
+									size="sm"
+									className="min-w-[2.5rem]"
+								>
+									{count}
+								</Button>
+							))}
+						</div>
 					</div>
 				</CardContent>
 			</Card>
+
+			{/* 고급 설정 (flux-dev만) */}
+			{selectedImageModel === "flux-dev" && (
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-lg">고급 설정 (Flux-dev 전용)</CardTitle>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						{/* 스텝 설정 */}
+						<div className="flex items-center space-x-2">
+							<Checkbox
+								id="useSpecificSteps"
+								checked={useSpecificSteps}
+								onCheckedChange={(checked: boolean) =>
+									setUseSpecificSteps(!!checked)
+								}
+							/>
+							<Label htmlFor="useSpecificSteps" className="text-sm font-medium">
+								Step 지정하기 (기본: 40)
+							</Label>
+						</div>
+						{useSpecificSteps && (
+							<div>
+								<Label className="text-sm font-medium">스텝 값</Label>
+								<Input
+									type="number"
+									min="1"
+									max="100"
+									value={steps}
+									onChange={(e) => setSteps(parseInt(e.target.value))}
+									className="w-full mt-1"
+								/>
+							</div>
+						)}
+
+						{/* 시드 설정 */}
+						<div className="flex items-center space-x-2">
+							<Checkbox
+								id="useSpecificSeed"
+								checked={useSpecificSeed}
+								onCheckedChange={(checked: boolean) =>
+									setUseSpecificSeed(!!checked)
+								}
+							/>
+							<Label htmlFor="useSpecificSeed" className="text-sm font-medium">
+								Seed 지정하기 (체크 해제 시 각각 랜덤)
+							</Label>
+						</div>
+						{useSpecificSeed && (
+							<div>
+								<Label className="text-sm font-medium">시드 값</Label>
+								<div className="flex mt-1">
+									<Input
+										type="number"
+										value={seed !== null ? seed : ""}
+										onChange={(e) =>
+											setSeed(e.target.value ? parseInt(e.target.value) : null)
+										}
+										className="flex-1 rounded-r-none"
+										placeholder="시드 값 입력"
+									/>
+									<Button
+										type="button"
+										onClick={handleRandomSeed}
+										variant="outline"
+										className="rounded-l-none"
+										title="랜덤 시드 생성"
+									>
+										🎲
+									</Button>
+								</div>
+							</div>
+						)}
+					</CardContent>
+				</Card>
+			)}
+
+			{/* 이미지 생성 버튼 */}
+			<div className="flex justify-center">
+				<Button
+					onClick={handleGenerateImages}
+					disabled={isGenerating || !imagePrompt.trim()}
+					className="px-8 py-2"
+				>
+					{isGenerating ? (
+						<>
+							<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+							이미지 생성 중...
+						</>
+					) : (
+						<>
+							<ImageIcon className="h-4 w-4 mr-2" />
+							이미지 생성
+						</>
+					)}
+				</Button>
+			</div>
 
 			{/* 오류 메시지 */}
 			{error && (
@@ -583,12 +594,6 @@ export function ImageGenerationStep() {
 												Seed: {image.seed}
 											</div>
 										)}
-									{/* Job ID 표시 */}
-									{image.job_id && (
-										<div className="mt-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded shadow-sm">
-											Job ID: {image.job_id.substring(0, 8)}...
-										</div>
-									)}
 								</div>
 							))}
 						</div>
