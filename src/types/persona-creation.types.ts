@@ -35,6 +35,7 @@ export interface PersonaCreationContextType {
 	updateData: (step: keyof PersonaCreationData, newData: any) => void;
 	currentStep: number;
 	setCurrentStep: (step: number) => void;
+	resetData: () => void; // 데이터 초기화 함수 타입 추가
 }
 
 // LLM 모델 정의

@@ -25,7 +25,12 @@ import { FinalReviewStep } from "./steps/FinalReviewStep";
 
 // 메인 다이얼로그 내용 컴포넌트
 function PersonaCreationDialogContent({ onClose }: { onClose: () => void }) {
-	const { currentStep, setCurrentStep } = usePersonaCreation();
+	const { currentStep, setCurrentStep, resetData } = usePersonaCreation(); // resetData 가져오기
+
+	const handleCancel = () => {
+		resetData(); // 데이터 리셋
+		onClose(); // 기존 onClose 호출
+	};
 
 	const renderCurrentStep = () => {
 		switch (currentStep) {
@@ -75,7 +80,7 @@ function PersonaCreationDialogContent({ onClose }: { onClose: () => void }) {
 						</Button>
 					)}
 				</div>
-				<Button variant="outline" onClick={onClose}>
+				<Button variant="outline" onClick={handleCancel}> {/* 수정된 핸들러 사용 */}
 					취소
 				</Button>
 			</DialogFooter>
@@ -96,11 +101,31 @@ export function PersonaCreationDialog({
 	onClose,
 	onPersonaCreated,
 }: PersonaCreationDialogProps) {
+	// DialogWrapperWithReset 컴포넌트를 내부에서 사용하여 resetData 로직을 캡슐화합니다.
+	// PersonaCreationProvider는 Dialog보다 바깥에 있어야 usePersonaCreation을 DialogWrapperWithReset에서 사용 가능합니다.
+	
+	const DialogWrapperWithReset = ({ children }: { children: React.ReactNode }) => {
+		const { resetData } = usePersonaCreation();
+
+		const handleOpenChange = (open: boolean) => {
+			if (!open) {
+				resetData(); // 다이얼로그가 닫힐 때 데이터 리셋
+			}
+			onClose(); // 기존 onClose 로직도 호출 (주로 상태 업데이트)
+		};
+
+		return (
+			<Dialog open={isOpen} onOpenChange={handleOpenChange}>
+				{children}
+			</Dialog>
+		);
+	};
+
 	return (
 		<PersonaCreationProvider>
-			<Dialog open={isOpen} onOpenChange={onClose}>
+			<DialogWrapperWithReset>
 				<PersonaCreationDialogContent onClose={onClose} />
-			</Dialog>
+			</DialogWrapperWithReset>
 		</PersonaCreationProvider>
 	);
 }

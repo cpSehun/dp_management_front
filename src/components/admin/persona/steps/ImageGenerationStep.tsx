@@ -73,7 +73,7 @@ export function ImageGenerationStep() {
 			body: JSON.stringify({
 				model: model,
 				prompt: prompt,
-				max_tokens: 300,
+				max_tokens: 1024,
 				temperature: 0.7,
 			}),
 		});
@@ -113,6 +113,8 @@ export function ImageGenerationStep() {
 	// 이미지 다운로드 함수
 	const downloadSelectedImage = async () => {
 		const selectedImage = generatedImages.find((img) => img.selected);
+		// uuid 관련 로직 제거
+
 		if (!selectedImage) return;
 
 		try {
@@ -148,7 +150,7 @@ export function ImageGenerationStep() {
 				imageBlob = await response.blob();
 			}
 
-			// 파일명 생성 (페르소나 이름이나 타임스탬프 사용)
+			// 파일명 생성 (페르소나 이름이나 타임스탬프 사용) - 원래 로직으로 복원
 			const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 			const filename = `persona_image_${timestamp}.png`;
 
@@ -513,7 +515,7 @@ export function ImageGenerationStep() {
 							<Checkbox
 								id="useSpecificSteps"
 								checked={useSpecificSteps}
-								onCheckedChange={(checked) => setUseSpecificSteps(!!checked)}
+								onCheckedChange={(checked: boolean) => setUseSpecificSteps(!!checked)}
 							/>
 							<Label htmlFor="useSpecificSteps" className="text-sm font-medium">
 								Step 지정하기 (기본: 40)
@@ -538,7 +540,7 @@ export function ImageGenerationStep() {
 							<Checkbox
 								id="useSpecificSeed"
 								checked={useSpecificSeed}
-								onCheckedChange={(checked) => setUseSpecificSeed(!!checked)}
+								onCheckedChange={(checked: boolean) => setUseSpecificSeed(!!checked)}
 							/>
 							<Label htmlFor="useSpecificSeed" className="text-sm font-medium">
 								Seed 지정하기 (체크 해제 시 각각 랜덤)
