@@ -10,8 +10,8 @@ import { User, BookOpen, Check } from "lucide-react";
 
 import { usePersonaCreation } from "../common/PersonaCreationContext";
 import { LLMGenerationButton } from "../common/LLMGenerationButton";
-import { PERSONA_PROMPTS, addNotes } from "@/constants/persona-prompts";
 import { PersonaType, LLMModel } from "@/types/persona-creation.types";
+import { fetchConceptPrompt } from "@/utils/prompt-api";
 
 // 지원 모델 목록
 const LLM_MODELS: LLMModel[] = [
@@ -37,14 +37,40 @@ export function ConceptGenerationStep() {
 	const [generatedConcept, setGeneratedConcept] = useState(
 		data.step1.concept || ""
 	);
-	const [inputMode, setInputMode] = useState<"auto" | "direct">("auto"); // 'auto' 또는 'direct'
+	const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
 
-	// 타입 변경 시나 프롬프트 모드 변경 시 디폴트 프롬프트 설정
-	useEffect(() => {
-		if (!useCustomPrompt) {
-			setConceptPrompt(PERSONA_PROMPTS.CONCEPT_GENERATION[personaType]);
+	// 타입 변경 시 프롬프트 다시 로드
+	const loadPromptForType = async (type: PersonaType) => {
+		if (useCustomPrompt) return; // 커스텀 프롬프트 사용 중이면 로드하지 않음
+
+		setIsLoadingPrompt(true);
+		try {
+			const prompt = await fetchConceptPrompt(type);
+			if (prompt) {
+				setConceptPrompt(prompt);
+			} else {
+				console.error("컨셉 프롬프트를 가져올 수 없습니다");
+				setConceptPrompt(""); // 실패 시 빈 값
+			}
+		} catch (error) {
+			console.error("프롬프트 로드 오류:", error);
+			setConceptPrompt("");
+		} finally {
+			setIsLoadingPrompt(false);
 		}
+	};
+
+	// 페르소나 타입 변경 시 프롬프트 로드
+	useEffect(() => {
+		loadPromptForType(personaType);
 	}, [personaType, useCustomPrompt]);
+
+	// 컴포넌트 마운트 시 초기 프롬프트 로드
+	useEffect(() => {
+		if (!useCustomPrompt && !conceptPrompt) {
+			loadPromptForType(personaType);
+		}
+	}, []);
 
 	// 직접 입력 체크박스 변경 처리
 	const handleUseCustomPromptChange = (checked: boolean) => {
@@ -52,40 +78,14 @@ export function ConceptGenerationStep() {
 		if (checked) {
 			setConceptPrompt("");
 		} else {
-			setConceptPrompt(PERSONA_PROMPTS.CONCEPT_GENERATION[personaType]);
+			loadPromptForType(personaType);
 		}
 	};
 
-	// "컨셉 자동 생성" 모드 선택 핸들러
-	const handleAutoMode = () => {
-		setInputMode("auto");
-		setGeneratedConcept(""); // 이전 컨셉 내용 초기화
-		if (!useCustomPrompt) {
-			setConceptPrompt(PERSONA_PROMPTS.CONCEPT_GENERATION[personaType]);
-		} else {
-			// useCustomPrompt가 true일 경우, 사용자가 직접 입력하던 프롬프트를 유지하거나,
-			// 혹은 ""로 초기화 할 수 있습니다. 현재는 유지하도록 둡니다.
-			// 필요시 setConceptPrompt("") 또는 이전 값 복원 로직 추가.
-		}
-	};
-
-	// "컨셉 직접 입력" 모드 선택 핸들러
-	const handleDirectMode = () => {
-		setInputMode("direct");
-		setGeneratedConcept(""); // 이전 컨셉 내용 초기화
-		setConceptPrompt(""); // 직접 입력 모드에서는 프롬프트가 필요 없음
-	};
-
-	// 컨셉 생성 API 호출 (LLMGenerationButton 클릭 시)
+	// 컨셉 생성 API 호출
 	const handleGenerateConcept = async () => {
-		if (inputMode !== "auto" || !conceptPrompt.trim()) {
-			// 자동 생성 모드가 아니거나 프롬프트가 비어있으면 실행하지 않음
-			// (버튼 자체가 비활성화되지만, 안전장치로 추가)
-			throw new Error(
-				inputMode !== "auto"
-					? "자동 생성 모드에서만 사용 가능합니다."
-					: "프롬프트를 입력해주세요."
-			);
+		if (!conceptPrompt.trim()) {
+			throw new Error("프롬프트를 입력해주세요.");
 		}
 
 		const response = await fetch("/api/v1/llm/generate", {
@@ -97,7 +97,7 @@ export function ConceptGenerationStep() {
 			body: JSON.stringify({
 				model: selectedModel,
 				prompt: conceptPrompt,
-				max_tokens: 2048, // 최대 토큰 수를 500에서 1024로 늘림
+				max_tokens: 500,
 				temperature: 0.8,
 			}),
 		});
@@ -196,7 +196,7 @@ export function ConceptGenerationStep() {
 					<CardTitle className="text-lg">LLM 모델 선택</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<div className="flex flex-wrap gap-2">
+					<div className="flex gap-2">
 						{LLM_MODELS.map((model) => (
 							<Button
 								key={model.id}
@@ -212,114 +212,78 @@ export function ConceptGenerationStep() {
 				</CardContent>
 			</Card>
 
-			{/* 컨셉 입력 방식 선택 버튼 */}
-			<div className="flex justify-center space-x-4 my-6">
-				<Button
-					onClick={handleAutoMode}
-					variant={inputMode === "auto" ? "default" : "outline"}
-					className="px-6 py-2"
-				>
-					컨셉 자동 생성
-				</Button>
-				<Button
-					onClick={handleDirectMode}
-					variant={inputMode === "direct" ? "default" : "outline"}
-					className="px-6 py-2"
-				>
-					컨셉 직접 입력
-				</Button>
-			</div>
-
-			{/* 컨셉 프롬프트 입력 (자동 생성 모드일 때만 표시) */}
-			{inputMode === "auto" && (
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-lg flex items-center justify-between">
-							프롬프트
-							<div className="flex items-center gap-2">
-								<input
-									type="checkbox"
-									id="useCustomPrompt"
-									checked={useCustomPrompt}
-									onChange={(e) =>
-										handleUseCustomPromptChange(e.target.checked)
-									}
-									className="rounded"
-								/>
-								<Label
-									htmlFor="useCustomPrompt"
-									className="text-sm font-normal"
-								>
-									직접 입력
-								</Label>
-							</div>
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<Textarea
-							value={conceptPrompt}
-							onChange={(e) => setConceptPrompt(e.target.value)}
-							className="min-h-[120px]"
-							placeholder={
-								useCustomPrompt
-									? "원하는 페르소나 컨셉을 생성하기 위한 프롬프트를 직접 입력하세요..."
-									: PERSONA_PROMPTS.CONCEPT_GENERATION[personaType] // 기본 프롬프트 표시
-							}
-						/>
-					</CardContent>
-				</Card>
-			)}
-
-			{/* "프롬프트로 컨셉 생성하기" 버튼 (자동 생성 모드일 때만 표시) */}
-			{inputMode === "auto" && (
-				<div className="flex justify-center mt-4">
-					<LLMGenerationButton
-						onGenerate={handleGenerateConcept}
-						disabled={!conceptPrompt.trim()}
-						className="px-8 py-2"
-					>
-						프롬프트로 컨셉 생성하기
-					</LLMGenerationButton>
-				</div>
-			)}
-
-			{/* 생성된 컨셉 또는 직접 입력 영역 */}
-			{/* 이 Card는 항상 표시되지만, 내용과 스타일은 inputMode에 따라 달라짐 */}
-			<Card
-				className={`mt-6 ${
-					inputMode === "auto" && generatedConcept
-						? "border-green-200 bg-green-50" // 자동 생성 모드이고 컨셉이 있을 때
-						: "border-gray-200" // 직접 입력 모드 또는 자동 생성 전
-				}`}
-			>
+			{/* 컨셉 프롬프트 입력 */}
+			<Card>
 				<CardHeader>
-					<CardTitle
-						className={`text-lg flex items-center gap-2 ${
-							inputMode === "auto" && generatedConcept ? "text-green-800" : ""
-						}`}
-					>
-						{inputMode === "auto" && generatedConcept && (
-							<Check className="h-5 w-5" />
-						)}
-						{inputMode === "auto" ? "생성된 컨셉" : "컨셉 직접 입력"}
+					<CardTitle className="text-lg flex items-center justify-between">
+						프롬프트
+						<div className="flex items-center gap-2">
+							<input
+								type="checkbox"
+								id="useCustomPrompt"
+								checked={useCustomPrompt}
+								onChange={(e) => handleUseCustomPromptChange(e.target.checked)}
+								className="rounded"
+							/>
+							<Label htmlFor="useCustomPrompt" className="text-sm font-normal">
+								직접 입력
+							</Label>
+						</div>
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<Textarea
-						value={generatedConcept}
-						onChange={(e) => setGeneratedConcept(e.target.value)}
-						className="min-h-[200px] max-h-[400px] bg-white border-gray-200 resize-y overflow-y-auto"
+						value={conceptPrompt}
+						onChange={(e) => setConceptPrompt(e.target.value)}
+						className="min-h-[120px]"
 						placeholder={
-							inputMode === "auto"
-								? generatedConcept // 자동 생성 모드이고 컨셉이 있으면 보여주고, 없으면 아래 메시지
-									? "" 
-									: "위에 '프롬프트로 컨셉 생성하기' 버튼을 눌러 컨셉을 생성하세요."
-								: "여기에 페르소나 컨셉을 직접 입력하세요..."
+							isLoadingPrompt
+								? "프롬프트를 불러오는 중..."
+								: useCustomPrompt
+								? "원하는 페르소나 컨셉을 생성하기 위한 프롬프트를 직접 입력하세요..."
+								: "DB에서 최신 프롬프트를 불러옵니다..."
 						}
-						// 자동 생성 모드에서 생성된 컨셉도 수정 가능하도록 readOnly는 설정하지 않음
+						disabled={isLoadingPrompt}
 					/>
+					{!useCustomPrompt && (
+						<div className="mt-2 text-xs text-gray-500">
+							💡 DB에서 최신 프롬프트를 자동으로 불러옵니다. 관리자 페이지에서
+							프롬프트를 수정할 수 있습니다.
+						</div>
+					)}
 				</CardContent>
 			</Card>
+
+			{/* 생성 버튼 */}
+			<div className="flex justify-center">
+				<LLMGenerationButton
+					onGenerate={handleGenerateConcept}
+					disabled={!conceptPrompt.trim() || isLoadingPrompt}
+					className="px-8 py-2"
+				>
+					{isLoadingPrompt ? "프롬프트 로딩 중..." : "생성"}
+				</LLMGenerationButton>
+			</div>
+
+			{/* 생성된 컨셉 */}
+			{generatedConcept && (
+				<Card className="border-green-200 bg-green-50">
+					<CardHeader>
+						<CardTitle className="text-lg text-green-800 flex items-center gap-2">
+							<Check className="h-5 w-5" />
+							생성된 컨셉
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<Textarea
+							value={generatedConcept}
+							onChange={(e) => setGeneratedConcept(e.target.value)}
+							className="min-h-[200px] bg-white border-green-200 resize-y"
+							placeholder="생성된 컨셉이 여기에 표시됩니다..."
+						/>
+					</CardContent>
+				</Card>
+			)}
 
 			{/* 완료 버튼 */}
 			<div className="flex justify-end">

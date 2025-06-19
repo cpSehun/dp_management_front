@@ -12,7 +12,7 @@ import { Check, RefreshCw, ImageIcon } from "lucide-react";
 
 import { usePersonaCreation } from "../common/PersonaCreationContext";
 import { LLMGenerationButton } from "../common/LLMGenerationButton";
-import { PERSONA_PROMPTS, formatPrompt } from "@/constants/persona-prompts";
+import { fetchImagePrompt, formatPrompt } from "@/utils/prompt-api";
 
 // 이미지 데이터 타입 (job_id 포함)
 interface GeneratedImageWithJobId {
@@ -62,7 +62,14 @@ export function ImageGenerationStep() {
 			throw new Error("2단계에서 페르소나 정보를 먼저 생성해주세요.");
 		}
 
-		const prompt = formatPrompt(PERSONA_PROMPTS.IMAGE_PROMPT_GENERATION, {
+		// DB에서 최신 이미지 생성 프롬프트 가져오기
+		const basePrompt = await fetchImagePrompt();
+		if (!basePrompt) {
+			throw new Error("이미지 생성 프롬프트를 가져올 수 없습니다.");
+		}
+
+		// 페르소나 정보를 프롬프트에 삽입
+		const prompt = formatPrompt(basePrompt, {
 			personaInfo: imageDescription || personaInfo,
 		});
 
@@ -552,7 +559,7 @@ export function ImageGenerationStep() {
 					) : (
 						<>
 							<ImageIcon className="h-4 w-4 mr-2" />
-							이미지 생성
+							이미지 생성 ({batchSize}개)
 						</>
 					)}
 				</Button>

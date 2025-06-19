@@ -11,7 +11,11 @@ import { Check, Plus, X } from "lucide-react";
 
 import { usePersonaCreation } from "../common/PersonaCreationContext";
 import { LLMGenerationButton } from "../common/LLMGenerationButton";
-import { PERSONA_PROMPTS, formatPrompt } from "@/constants/persona-prompts";
+import {
+	fetchSummaryPrompt,
+	fetchTagsPrompt,
+	formatPrompt,
+} from "@/utils/prompt-api";
 
 export function SummaryAndTagsStep() {
 	const { data, updateData, setCurrentStep } = usePersonaCreation();
@@ -19,6 +23,8 @@ export function SummaryAndTagsStep() {
 	const [summary, setSummary] = useState(data.step3.summary || "");
 	const [tags, setTags] = useState<string[]>(data.step3.tags || []);
 	const [newTag, setNewTag] = useState("");
+	const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+	const [isLoadingTags, setIsLoadingTags] = useState(false);
 
 	// 페르소나 요약 자동 생성
 	const handleGenerateSummary = async () => {
@@ -29,36 +35,45 @@ export function SummaryAndTagsStep() {
 			throw new Error("2단계에서 페르소나 정보를 먼저 생성해주세요.");
 		}
 
-		// 요약 생성 프롬프트
-		const prompt = formatPrompt(PERSONA_PROMPTS.SUMMARY_GENERATION, {
-			personaInfo,
-		});
+		setIsLoadingSummary(true);
+		try {
+			// DB에서 최신 요약 생성 프롬프트 가져오기
+			const basePrompt = await fetchSummaryPrompt();
+			if (!basePrompt) {
+				throw new Error("요약 생성 프롬프트를 가져올 수 없습니다.");
+			}
 
-		const response = await fetch("/api/v1/llm/generate", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-			},
-			body: JSON.stringify({
-				model: model,
-				prompt: prompt,
-				max_tokens: 100,
-				temperature: 0.5,
-			}),
-		});
+			// 페르소나 정보를 프롬프트에 삽입
+			const prompt = formatPrompt(basePrompt, { personaInfo });
 
-		if (!response.ok) {
-			const errorData = await response.json();
-			throw new Error(errorData.detail || "API 요청이 실패했습니다.");
-		}
+			const response = await fetch("/api/v1/llm/generate", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+				},
+				body: JSON.stringify({
+					model: model,
+					prompt: prompt,
+					max_tokens: 100,
+					temperature: 0.5,
+				}),
+			});
 
-		const result = await response.json();
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.detail || "API 요청이 실패했습니다.");
+			}
 
-		if (result.success && result.content) {
-			setSummary(result.content.trim());
-		} else {
-			throw new Error(result.error || "요약 생성에 실패했습니다.");
+			const result = await response.json();
+
+			if (result.success && result.content) {
+				setSummary(result.content.trim());
+			} else {
+				throw new Error(result.error || "요약 생성에 실패했습니다.");
+			}
+		} finally {
+			setIsLoadingSummary(false);
 		}
 	};
 
@@ -71,103 +86,105 @@ export function SummaryAndTagsStep() {
 			throw new Error("2단계에서 페르소나 정보를 먼저 생성해주세요.");
 		}
 
-		// 태그 생성 프롬프트
-		const prompt = formatPrompt(PERSONA_PROMPTS.TAGS_GENERATION, {
-			personaInfo,
-		});
-
-		const response = await fetch("/api/v1/llm/generate", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-			},
-			body: JSON.stringify({
-				model: model,
-				prompt: prompt,
-				max_tokens: 200,
-				temperature: 0.6,
-			}),
-		});
-
-		if (!response.ok) {
-			const errorData = await response.json();
-			throw new Error(errorData.detail || "API 요청이 실패했습니다.");
-		}
-
-		const result = await response.json();
-
-		if (result.success && result.content) {
-			let generatedTags: string[] = [];
-
-			try {
-				// JSON 형태의 응답인지 확인
-				if (result.content.includes('"tags"') || result.content.includes("[")) {
-					// JSON에서 tags 배열 추출 시도
-					const jsonMatch = result.content.match(/"tags"\s*:\s*\[(.*?)\]/s);
-					if (jsonMatch) {
-						const tagsString = jsonMatch[1];
-						generatedTags = tagsString
-							.split(",")
-							.map((tag) => tag.replace(/["\[\]]/g, "").trim())
-							.filter((tag) => tag.length > 0);
-					} else {
-						// 대괄호로 둘러싸인 배열 형태 추출
-						const arrayMatch = result.content.match(/\[(.*?)\]/s);
-						if (arrayMatch) {
-							const tagsString = arrayMatch[1];
-							generatedTags = tagsString
-								.split(",")
-								.map((tag) => tag.replace(/["\[\]]/g, "").trim())
-								.filter((tag) => tag.length > 0);
-						}
-					}
-				} else {
-					// 일반 쉼표 구분 텍스트
-					generatedTags = result.content
-						.split(",")
-						.map((tag) => tag.trim())
-						.filter((tag) => tag.length > 0);
-				}
-			} catch (error) {
-				// JSON 파싱 실패 시 일반 쉼표 구분으로 처리
-				generatedTags = result.content
-					.split(",")
-					.map((tag) => tag.replace(/["\[\]{}]/g, "").trim())
-					.filter((tag) => tag.length > 0);
+		setIsLoadingTags(true);
+		try {
+			// DB에서 최신 태그 생성 프롬프트 가져오기
+			const basePrompt = await fetchTagsPrompt();
+			if (!basePrompt) {
+				throw new Error("태그 생성 프롬프트를 가져올 수 없습니다.");
 			}
 
-			setTags(generatedTags);
-		} else {
-			throw new Error(result.error || "태그 생성에 실패했습니다.");
+			// 페르소나 정보를 프롬프트에 삽입
+			const prompt = formatPrompt(basePrompt, { personaInfo });
+
+			const response = await fetch("/api/v1/llm/generate", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+				},
+				body: JSON.stringify({
+					model: model,
+					prompt: prompt,
+					max_tokens: 200,
+					temperature: 0.6,
+				}),
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.detail || "API 요청이 실패했습니다.");
+			}
+
+			const result = await response.json();
+
+			if (result.success && result.content) {
+				// JSON 형태로 태그가 응답될 것으로 예상
+				try {
+					// "tags": ["태그1", "태그2", ...] 형태에서 태그 배열 추출
+					const content = result.content.trim();
+					const tagsMatch = content.match(/"tags":\s*\[([^\]]+)\]/);
+
+					if (tagsMatch) {
+						const tagsString = tagsMatch[1];
+						const parsedTags = tagsString
+							.split(",")
+							.map((tag) => tag.replace(/"/g, "").trim())
+							.filter((tag) => tag.length > 0);
+
+						setTags(parsedTags);
+					} else {
+						// JSON 파싱이 실패한 경우 전체 응답을 쉼표로 분리하여 태그로 사용
+						const fallbackTags = content
+							.split(",")
+							.map((tag) => tag.replace(/["\[\]]/g, "").trim())
+							.filter((tag) => tag.length > 0)
+							.slice(0, 10); // 최대 10개
+
+						setTags(fallbackTags);
+					}
+				} catch (parseError) {
+					console.error("태그 파싱 오류:", parseError);
+					throw new Error("태그 형식을 파싱할 수 없습니다.");
+				}
+			} else {
+				throw new Error(result.error || "태그 생성에 실패했습니다.");
+			}
+		} finally {
+			setIsLoadingTags(false);
 		}
 	};
 
 	// 태그 추가
-	const handleAddTag = () => {
+	const addTag = () => {
 		if (newTag.trim() && !tags.includes(newTag.trim())) {
 			setTags([...tags, newTag.trim()]);
 			setNewTag("");
 		}
 	};
 
-	// 태그 삭제
-	const handleRemoveTag = (tagToRemove: string) => {
+	// 태그 제거
+	const removeTag = (tagToRemove: string) => {
 		setTags(tags.filter((tag) => tag !== tagToRemove));
 	};
 
 	// Enter 키로 태그 추가
-	const handleTagInputKeyPress = (e: React.KeyboardEvent) => {
+	const handleTagKeyPress = (e: React.KeyboardEvent) => {
 		if (e.key === "Enter") {
 			e.preventDefault();
-			handleAddTag();
+			addTag();
 		}
 	};
 
 	// 3단계 완료
 	const handleComplete = () => {
 		if (!summary.trim()) {
-			alert("요약을 입력해주세요.");
+			alert("요약을 생성해주세요.");
+			return;
+		}
+
+		if (tags.length === 0) {
+			alert("태그를 생성해주세요.");
 			return;
 		}
 
@@ -183,7 +200,7 @@ export function SummaryAndTagsStep() {
 
 	return (
 		<div className="space-y-6">
-			{/* 2단계 페르소나 정보 표시 */}
+			{/* 2단계에서 생성된 페르소나 정보 표시 */}
 			<Card className="border-blue-200 bg-blue-50">
 				<CardHeader>
 					<CardTitle className="text-lg text-blue-800">
@@ -191,7 +208,7 @@ export function SummaryAndTagsStep() {
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<div className="p-3 bg-white rounded-md border max-h-32 overflow-y-auto">
+					<div className="p-3 bg-white rounded-md border max-h-40 overflow-y-auto">
 						<p className="text-sm whitespace-pre-wrap">
 							{data.step2.personaInfo}
 						</p>
@@ -203,28 +220,29 @@ export function SummaryAndTagsStep() {
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-lg flex items-center justify-between">
-						페르소나 요약 (30자 이내)
+						페르소나 요약
 						<LLMGenerationButton
 							onGenerate={handleGenerateSummary}
-							disabled={!data.step2.personaInfo.trim()}
+							disabled={!data.step2.personaInfo.trim() || isLoadingSummary}
 							variant="outline"
 							size="sm"
 						>
-							자동생성
+							{isLoadingSummary ? "생성 중..." : "자동생성"}
 						</LLMGenerationButton>
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<Input
+					<Textarea
 						value={summary}
 						onChange={(e) => setSummary(e.target.value)}
-						className="w-full"
-						placeholder="페르소나의 핵심 특징을 30자 이내로 요약해주세요..."
-						maxLength={30}
+						className="min-h-[80px]"
+						placeholder="페르소나 요약이 여기에 생성됩니다..."
 					/>
-					<div className="mt-1 text-xs text-gray-500 text-right">
-						{summary.length}/30자
-					</div>
+					{!summary && (
+						<div className="mt-2 text-xs text-gray-500">
+							💡 DB에서 최신 요약 생성 프롬프트를 사용합니다.
+						</div>
+					)}
 				</CardContent>
 			</Card>
 
@@ -235,57 +253,62 @@ export function SummaryAndTagsStep() {
 						페르소나 태그
 						<LLMGenerationButton
 							onGenerate={handleGenerateTags}
-							disabled={!data.step2.personaInfo.trim()}
+							disabled={!data.step2.personaInfo.trim() || isLoadingTags}
 							variant="outline"
 							size="sm"
 						>
-							자동생성
+							{isLoadingTags ? "생성 중..." : "자동생성"}
 						</LLMGenerationButton>
 					</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					{/* 태그 입력 */}
-					<div className="flex gap-2">
-						<Input
-							value={newTag}
-							onChange={(e) => setNewTag(e.target.value)}
-							onKeyPress={handleTagInputKeyPress}
-							className="flex-1"
-							placeholder="태그를 입력하고 Enter를 누르세요..."
-						/>
-						<Button
-							onClick={handleAddTag}
-							disabled={!newTag.trim() || tags.includes(newTag.trim())}
-							size="sm"
-						>
-							<Plus className="h-4 w-4" />
-						</Button>
-					</div>
-
-					{/* 태그 목록 */}
+					{/* 생성된 태그 표시 */}
 					{tags.length > 0 && (
-						<div className="flex flex-wrap gap-2">
-							{tags.map((tag, index) => (
-								<Badge
-									key={index}
-									variant="secondary"
-									className="flex items-center gap-1 px-2 py-1"
-								>
-									{tag}
-									<button
-										onClick={() => handleRemoveTag(tag)}
-										className="ml-1 hover:text-red-500"
+						<div>
+							<Label className="text-sm font-medium">생성된 태그</Label>
+							<div className="flex flex-wrap gap-2 mt-2">
+								{tags.map((tag, index) => (
+									<Badge
+										key={index}
+										variant="secondary"
+										className="flex items-center gap-1"
 									>
-										<X className="h-3 w-3" />
-									</button>
-								</Badge>
-							))}
+										{tag}
+										<X
+											className="h-3 w-3 cursor-pointer hover:text-red-500"
+											onClick={() => removeTag(tag)}
+										/>
+									</Badge>
+								))}
+							</div>
 						</div>
 					)}
 
+					{/* 수동 태그 추가 */}
+					<div>
+						<Label className="text-sm font-medium">태그 추가</Label>
+						<div className="flex gap-2 mt-2">
+							<Input
+								value={newTag}
+								onChange={(e) => setNewTag(e.target.value)}
+								onKeyPress={handleTagKeyPress}
+								placeholder="태그 입력 후 Enter"
+								className="flex-1"
+							/>
+							<Button
+								onClick={addTag}
+								variant="outline"
+								size="sm"
+								disabled={!newTag.trim()}
+							>
+								<Plus className="h-4 w-4" />
+							</Button>
+						</div>
+					</div>
+
 					{tags.length === 0 && (
-						<div className="text-center text-gray-400 py-4">
-							태그가 없습니다. 위에서 태그를 추가하거나 자동생성을 사용해보세요.
+						<div className="text-xs text-gray-500">
+							💡 DB에서 최신 태그 생성 프롬프트를 사용합니다.
 						</div>
 					)}
 				</CardContent>
@@ -295,11 +318,11 @@ export function SummaryAndTagsStep() {
 			<div className="flex justify-end">
 				<Button
 					onClick={handleComplete}
-					disabled={!summary.trim()}
+					disabled={!summary.trim() || tags.length === 0}
 					className="bg-green-600 hover:bg-green-700"
 				>
 					<Check className="h-4 w-4 mr-2" />
-					요약/태그 완료
+					다음 단계
 				</Button>
 			</div>
 		</div>
