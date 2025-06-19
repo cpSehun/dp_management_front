@@ -124,7 +124,7 @@ export default function AdminLayout({
 								}`}
 							>
 								<BarChart3 className="h-4 w-4" />
-								Dashboard
+								대시보드
 							</Link>
 							<Link
 								href="/admin/persona"
@@ -144,7 +144,7 @@ export default function AdminLayout({
 								}`}
 							>
 								<TerminalSquare className="h-4 w-4" />
-								Prompts
+								프롬프트 관리
 							</Link>
 
 							{/* 이미지 아코디언 서브메뉴 (기존 유지) */}
@@ -159,7 +159,7 @@ export default function AdminLayout({
 								>
 									<div className="flex items-center gap-3">
 										<Image className="h-4 w-4" />
-										<span>Images</span>
+										<span>이미지 관리</span>
 									</div>
 									{isImagesMenuOpen ? (
 										<ChevronUp className="h-4 w-4" />
@@ -178,7 +178,7 @@ export default function AdminLayout({
 													: ""
 											}`}
 										>
-											Image List
+											이미지 목록
 										</Link>
 										<Link
 											href="/admin/image-generator"
@@ -188,7 +188,7 @@ export default function AdminLayout({
 													: ""
 											}`}
 										>
-											Image Generation
+											이미지 생성
 										</Link>
 									</div>
 								)}
@@ -202,7 +202,7 @@ export default function AdminLayout({
 								}`}
 							>
 								<Users className="h-4 w-4" />
-								Users
+								관리자 목록
 							</Link>
 						</nav>
 					</div>
