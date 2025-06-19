@@ -82,7 +82,7 @@ export function ImageGenerationStep() {
 			body: JSON.stringify({
 				model: model,
 				prompt: prompt,
-				max_tokens: 300,
+				max_tokens: 1024,
 				temperature: 0.7,
 			}),
 		});
