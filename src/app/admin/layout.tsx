@@ -12,6 +12,7 @@ import {
 	ChevronDown,
 	ChevronUp,
 } from "lucide-react";
+import NextImage from "next/image";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -111,8 +112,8 @@ export default function AdminLayout({
 							href="/admin/dashboard"
 							className="flex items-center gap-2 font-semibold"
 						>
-							<TerminalSquare className="h-6 w-6" />
-							<span className="">Daepa Admin</span>
+							<NextImage src="/logo.png" alt="Logo" width={70} height={18.05} />
+							<span className="">관리자 페이지</span>
 						</Link>
 					</div>
 					<div className="flex-1">
@@ -133,7 +134,7 @@ export default function AdminLayout({
 								}`}
 							>
 								<User className="h-4 w-4" />
-								Persona
+								페르소나 관리
 							</Link>
 
 							{/* Prompts 단일 링크 */}
