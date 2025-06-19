@@ -159,12 +159,13 @@ export default function ImageGeneratorPage() {
 		fetchModels();
 	}, []);
 
-	// 이미지 프롬프트 목록 가져오기 (DB 연동 후)
+	// 이미지 프롬프트 목록 가져오기 (수정된 버전)
 	useEffect(() => {
 		const fetchImagePrompts = async () => {
 			setIsLoadingImagePrompts(true);
-			setImagePrompts([]); // 기존 목록 초기화
+			setImagePrompts([]);
 			setFilteredImagePrompts([]);
+
 			try {
 				const token = localStorage.getItem("access_token");
 				if (!token) {
@@ -172,8 +173,8 @@ export default function ImageGeneratorPage() {
 					return;
 				}
 
-				// 모든 프롬프트를 가져오기 위해 limit=1000 추가
-				const response = await fetch("/api/v1/prompts/image?limit=1000", {
+				// ✅ 올바른 API 엔드포인트 사용
+				const response = await fetch("/api/v1/prompts/workflow?limit=1000", {
 					headers: {
 						Authorization: `Bearer ${token}`,
 					},
@@ -185,7 +186,7 @@ export default function ImageGeneratorPage() {
 					throw new Error(errorData.detail || "Failed to fetch image prompts");
 				}
 
-				const responseData: PaginatedPromptsResponse = await response.json();
+				const responseData = await response.json();
 
 				if (
 					!responseData ||
@@ -193,7 +194,7 @@ export default function ImageGeneratorPage() {
 					!Array.isArray(responseData.items)
 				) {
 					console.error(
-						"API responseData.items is not an array or responseData is invalid:",
+						"API responseData.items is not an array:",
 						responseData
 					);
 					setImagePrompts([]);
@@ -201,33 +202,37 @@ export default function ImageGeneratorPage() {
 					return;
 				}
 
-				const fetchedPrompts: Prompt[] = responseData.items.map((item: any) => {
-					console.log("Raw API item:", item); // 실제 데이터 구조 확인
-					return {
-						id: item.id,
-						name: item.name,
-						image_prompt: item.llm_prompt, // llm_prompt를 image_prompt로 매핑
-						version: item.version, // 메인 프롬프트의 현재 활성 버전
-						versions: Array.isArray(item.versions)
-							? item.versions.map((v: any) => ({
-									id: v.id,
-									version: v.version,
-									content: v.llm_prompt, // llm_prompt를 content로 매핑
-									created_at: v.created_at,
-							  }))
-							: [],
-						tags: Array.isArray(item.tags) ? item.tags : [],
-						created_at: item.created_at,
-						updated_at: item.updated_at,
-						created_by: item.created_by,
-					};
+				// ✅ 이미지 관련 프롬프트만 필터링
+				const imagePrompts = responseData.items.filter((item: any) => {
+					const name = item.name?.toLowerCase() || "";
+					return name.includes("이미지") || name.includes("image");
 				});
+
+				const fetchedPrompts: Prompt[] = imagePrompts.map((item: any) => ({
+					id: item.id,
+					name: item.name,
+					image_prompt: item.llm_prompt, // llm_prompt를 image_prompt로 매핑
+					version: item.version,
+					versions: Array.isArray(item.versions)
+						? item.versions.map((v: any) => ({
+								id: v.id,
+								version: v.version,
+								content: v.llm_prompt,
+								created_at: v.created_at,
+						  }))
+						: [],
+					tags: Array.isArray(item.tags) ? item.tags : [],
+					created_at: item.created_at,
+					updated_at: item.updated_at,
+					created_by: item.created_by,
+				}));
 
 				setImagePrompts(fetchedPrompts);
 				setFilteredImagePrompts(fetchedPrompts);
+
+				console.log(`이미지 프롬프트 ${fetchedPrompts.length}개 로드 완료`);
 			} catch (error) {
 				console.error("Error fetching image prompts:", error);
-				// 에러 발생 시 빈 배열로 설정
 				setImagePrompts([]);
 				setFilteredImagePrompts([]);
 			} finally {
@@ -237,7 +242,6 @@ export default function ImageGeneratorPage() {
 
 		fetchImagePrompts();
 	}, []);
-
 	// 이미지 프롬프트 필터링
 	useEffect(() => {
 		if (!imagePromptSearch || imagePromptSearch.trim() === "") {
