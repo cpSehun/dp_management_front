@@ -36,6 +36,7 @@ export function PersonaInfoStep() {
 		try {
 			// DB에서 최신 페르소나 정보 프롬프트 가져오기
 			const basePrompt = await fetchPersonaInfoPrompt(personaType);
+
 			if (!basePrompt) {
 				throw new Error("페르소나 정보 생성 프롬프트를 가져올 수 없습니다.");
 			}

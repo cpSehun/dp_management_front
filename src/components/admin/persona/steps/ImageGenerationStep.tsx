@@ -82,7 +82,7 @@ export function ImageGenerationStep() {
 			body: JSON.stringify({
 				model: model,
 				prompt: prompt,
-				max_tokens: 200,
+				max_tokens: 300,
 				temperature: 0.7,
 			}),
 		});
@@ -559,7 +559,7 @@ export function ImageGenerationStep() {
 					) : (
 						<>
 							<ImageIcon className="h-4 w-4 mr-2" />
-							이미지 생성 ({batchSize}개)
+							이미지 생성
 						</>
 					)}
 				</Button>

@@ -30,20 +30,20 @@ export async function fetchLatestPrompt(
 			params.append("type", type);
 		}
 
-		const response = await fetch(
-			`/api/v1/prompts/workflow/latest?${params.toString()}`,
-			{
-				headers: {
-					Authorization: `Bearer ${token}`,
-				},
-			}
-		);
+		const apiUrl = `/api/v1/prompts/workflow/latest?${params.toString()}`;
+
+		const response = await fetch(apiUrl, {
+			headers: {
+				Authorization: `Bearer ${token}`,
+			},
+		});
 
 		if (!response.ok) {
 			throw new Error(`프롬프트 조회 실패: ${response.status}`);
 		}
 
 		const data: LatestPromptResponse = await response.json();
+
 		return data.llm_prompt;
 	} catch (error) {
 		console.error(

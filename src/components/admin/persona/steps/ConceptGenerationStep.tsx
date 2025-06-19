@@ -88,7 +88,7 @@ export function ConceptGenerationStep() {
 			// PersonaType을 DB 타입으로 매핑
 			const dbType = type === "character" ? "CHAR" : "STORY";
 			const response = await fetch(
-				`/api/v1/prompts/workflow/latest?type=${dbType}`,
+				`/api/v1/prompts/workflow/latest?category=concept&type=${dbType}`,
 				{
 					headers: {
 						Authorization: `Bearer ${token}`,
@@ -166,7 +166,7 @@ export function ConceptGenerationStep() {
 			body: JSON.stringify({
 				model: selectedModel,
 				prompt: conceptPrompt,
-				max_tokens: 1024,
+				max_tokens: 2048,
 				temperature: 0.8,
 			}),
 		});
