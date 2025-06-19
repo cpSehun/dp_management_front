@@ -80,7 +80,7 @@ export default function LoginPage() {
 				>
 					{loading ? "로그인 중..." : "로그인"}
 				</button>
-				<button
+				{/* <button
 					type="button"
 					onClick={() => {
 						// 환경 변수 또는 현재 위치 기반으로 URL 생성
@@ -95,7 +95,7 @@ export default function LoginPage() {
 					className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 transition mt-4"
 				>
 					Google로 로그인
-				</button>
+				</button> */}
 			</form>
 		</div>
 	);

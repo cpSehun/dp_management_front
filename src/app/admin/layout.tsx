@@ -12,7 +12,6 @@ import {
 	ChevronDown,
 	ChevronUp,
 } from "lucide-react";
-import NextImage from "next/image";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -46,8 +45,7 @@ export default function AdminLayout({
 	const [username, setUsername] = useState<string | null>(null);
 	const [isClient, setIsClient] = useState(false);
 
-	// 메뉴 토글 상태 (새로고침 시 초기화됨)
-	const [isPromptsMenuOpen, setIsPromptsMenuOpen] = useState(false);
+	// Images 메뉴 토글 상태만 유지
 	const [isImagesMenuOpen, setIsImagesMenuOpen] = useState(false);
 
 	useEffect(() => {
@@ -87,14 +85,10 @@ export default function AdminLayout({
 		}
 	}, [router, pathname]);
 
-	// 현재 경로에 따라 메뉴 열림 상태 설정 (페이지 로드 시에만)
+	// 현재 경로에 따라 메뉴 열림 상태 설정 (Images 메뉴만)
 	useEffect(() => {
-		if (pathname.startsWith("/admin/prompts")) {
-			setIsPromptsMenuOpen(true);
-			setIsImagesMenuOpen(false);
-		} else if (pathname.startsWith("/admin/image")) {
+		if (pathname.startsWith("/admin/image")) {
 			setIsImagesMenuOpen(true);
-			setIsPromptsMenuOpen(false);
 		}
 	}, [pathname]);
 
@@ -103,22 +97,9 @@ export default function AdminLayout({
 		window.location.href = "/login";
 	};
 
-	// Prompts 메뉴 토글
-	const handlePromptsMenuToggle = () => {
-		setIsPromptsMenuOpen(!isPromptsMenuOpen);
-		// 다른 메뉴는 닫기
-		if (!isPromptsMenuOpen) {
-			setIsImagesMenuOpen(false);
-		}
-	};
-
 	// Images 메뉴 토글
 	const handleImagesMenuToggle = () => {
 		setIsImagesMenuOpen(!isImagesMenuOpen);
-		// 다른 메뉴는 닫기
-		if (!isImagesMenuOpen) {
-			setIsPromptsMenuOpen(false);
-		}
 	};
 
 	return (
@@ -130,8 +111,8 @@ export default function AdminLayout({
 							href="/admin/dashboard"
 							className="flex items-center gap-2 font-semibold"
 						>
-							<NextImage src="/logo.png" alt="Logo" width={70} height={18.95} />
-							<span className="">페르소나 관리</span>
+							<TerminalSquare className="h-6 w-6" />
+							<span className="">Daepa Admin</span>
 						</Link>
 					</div>
 					<div className="flex-1">
@@ -152,57 +133,21 @@ export default function AdminLayout({
 								}`}
 							>
 								<User className="h-4 w-4" />
-								페르소나
+								Persona
 							</Link>
 
-							{/* 프롬프트 아코디언 서브메뉴 */}
-							<div className="flex flex-col">
-								<button
-									onClick={handlePromptsMenuToggle}
-									className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
-										pathname.startsWith("/admin/prompts")
-											? "bg-muted text-primary"
-											: ""
-									}`}
-								>
-									<div className="flex items-center gap-3">
-										<TerminalSquare className="h-4 w-4" />
-										<span>프롬프트 관리</span>
-									</div>
-									{isPromptsMenuOpen ? (
-										<ChevronUp className="h-4 w-4" />
-									) : (
-										<ChevronDown className="h-4 w-4" />
-									)}
-								</button>
+							{/* Prompts 단일 링크 */}
+							<Link
+								href="/admin/prompts"
+								className={`flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
+									pathname === "/admin/prompts" ? "bg-muted text-primary" : ""
+								}`}
+							>
+								<TerminalSquare className="h-4 w-4" />
+								프롬프트 관리
+							</Link>
 
-								{isPromptsMenuOpen && (
-									<div className="ml-7 mt-1 border-l border-gray-200 pl-3 flex flex-col gap-1">
-										<Link
-											href="/admin/prompts/image"
-											className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:text-primary ${
-												pathname === "/admin/prompts/image"
-													? "bg-muted/70 text-primary"
-													: ""
-											}`}
-										>
-											이미지 프롬프트
-										</Link>
-										<Link
-											href="/admin/prompts/persona"
-											className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:text-primary ${
-												pathname === "/admin/prompts/persona"
-													? "bg-muted/70 text-primary"
-													: ""
-											}`}
-										>
-											페르소나 프롬프트
-										</Link>
-									</div>
-								)}
-							</div>
-
-							{/* 이미지 아코디언 서브메뉴 */}
+							{/* 이미지 아코디언 서브메뉴 (기존 유지) */}
 							<div className="flex flex-col">
 								<button
 									onClick={handleImagesMenuToggle}
@@ -235,7 +180,7 @@ export default function AdminLayout({
 										>
 											이미지 목록
 										</Link>
-										{/*<Link
+										<Link
 											href="/admin/image-generator"
 											className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:text-primary ${
 												pathname === "/admin/image-generator"
@@ -243,12 +188,13 @@ export default function AdminLayout({
 													: ""
 											}`}
 										>
-											이미지 생성기
-										</Link>*/}
+											이미지 생성
+										</Link>
 									</div>
 								)}
 							</div>
 
+							{/* Users 메뉴 복원 */}
 							<Link
 								href="/admin/users"
 								className={`flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary ${
@@ -263,6 +209,7 @@ export default function AdminLayout({
 				</div>
 			</div>
 			<div className="flex flex-col">
+				{/* 우측 상단 헤더에 사용자 정보/로그아웃 버튼 복원 */}
 				<header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
 					{/* TODO: Add Mobile Nav Toggle */}
 					<div className="w-full flex-1">

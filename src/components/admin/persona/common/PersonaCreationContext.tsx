@@ -29,7 +29,17 @@ export function PersonaCreationProvider({
 	children,
 }: PersonaCreationProviderProps) {
 	const [data, setData] = useState<PersonaCreationData>({
-		step1: { personaType: "character", model: "gemini-2.0-flash", concept: "" },
+		step1: {
+			personaType: "character",
+			model: "gemini-2.0-flash",
+			concept: "",
+			// 확장된 필드들 초기화
+			inputMode: undefined,
+			generatedConcept: "",
+			directConcept: "",
+			conceptPrompt: "",
+			useCustomPrompt: false,
+		},
 		step2: { personaInfo: "", regenerationNotes: "" },
 		step3: { summary: "", tags: [] },
 		step4: {
@@ -56,6 +66,12 @@ export function PersonaCreationProvider({
 				personaType: "character",
 				model: "gemini-2.0-flash",
 				concept: "",
+				// 확장된 필드들 초기화
+				inputMode: undefined,
+				generatedConcept: "",
+				directConcept: "",
+				conceptPrompt: "",
+				useCustomPrompt: false,
 			},
 			step2: { personaInfo: "", regenerationNotes: "" },
 			step3: { summary: "", tags: [] },
