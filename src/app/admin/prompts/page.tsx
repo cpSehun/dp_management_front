@@ -1,27 +1,3 @@
-// "use client";
-
-// import { useEffect } from "react";
-// import { useRouter } from "next/navigation";
-
-// export default function PromptsRedirectPage() {
-// 	const router = useRouter();
-
-// 	useEffect(() => {
-// 		// 이미지 프롬프트 페이지로 자동 리다이렉트 (더 깔끔한 구현)
-// 		router.replace("/admin/prompts/image");
-// 	}, [router]);
-
-// 	// 리다이렉트 중 간단한 로딩 표시
-// 	return (
-// 		<div className="flex items-center justify-center h-40">
-// 			<div className="flex items-center space-x-2">
-// 				<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
-// 				<span className="text-gray-600">프롬프트 페이지로 이동 중...</span>
-// 			</div>
-// 		</div>
-// 	);
-// }
-
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -45,6 +21,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Edit, Search, Eye, RotateCcw, Save, X } from "lucide-react";
+import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
 	AdminTable,
 	AdminTableHeader,
@@ -55,6 +33,7 @@ import {
 	AdminTableLoadingRow,
 	AdminTableEmptyRow,
 } from "@/components/admin/AdminTable";
+import { ActionDropdown, ActionItem } from "@/components/admin/ActionDropdown";
 
 // 타입 정의
 interface WorkflowPromptVersion {
@@ -274,119 +253,100 @@ export default function AdminPromptsPage() {
 		});
 	};
 
+	// 액션 메뉴 아이템 생성
+	const getPromptActions = (prompt: WorkflowPrompt): ActionItem[] => {
+		if (!prompt) return [];
+
+		return [
+			{
+				label: "미리보기",
+				icon: <Eye className="h-4 w-4" />,
+				onClick: () => handlePreview(prompt),
+			},
+			{
+				label: "수정",
+				icon: <Edit className="h-4 w-4" />,
+				onClick: () => handleEdit(prompt),
+			},
+			{
+				label: "버전 롤백",
+				icon: <RotateCcw className="h-4 w-4" />,
+				onClick: () => handleRollback(prompt),
+				disabled: !prompt.versions || prompt.versions.length <= 1,
+			},
+		];
+	};
+
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">프롬프트 관리</h1>
-					<p className="text-muted-foreground">
-						페르소나 생성 워크플로우의 모든 프롬프트를 관리합니다.
-					</p>
-				</div>
-			</div>
+		<AdminPageLayout>
+			<AdminPageHeader
+				title="프롬프트 관리"
+				description="페르소나 생성 워크플로우의 모든 프롬프트를 관리합니다."
+				searchPlaceholder="프롬프트 이름, 내용으로 검색..."
+				searchValue={searchTerm}
+				onSearchChange={setSearchTerm}
+				showCreateButton={false}
+			/>
 
-			{/* 검색 */}
-			<Card>
-				<CardHeader>
-					<CardTitle>프롬프트 검색</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="flex gap-4">
-						<div className="flex-1">
-							<div className="relative">
-								<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-								<Input
-									placeholder="프롬프트 이름, 내용으로 검색..."
-									value={searchTerm}
-									onChange={(e) => setSearchTerm(e.target.value)}
-									className="pl-10"
-								/>
-							</div>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
-
-			{/* 프롬프트 목록 */}
-			<Card>
-				<CardHeader>
-					<CardTitle>프롬프트 목록 ({totalItems}개)</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<AdminTable>
-						<AdminTableHeader>
-							<AdminTableHeaderCell>이름</AdminTableHeaderCell>
-							<AdminTableHeaderCell>카테고리</AdminTableHeaderCell>
-							<AdminTableHeaderCell>타입</AdminTableHeaderCell>
-							<AdminTableHeaderCell>현재 버전</AdminTableHeaderCell>
-							<AdminTableHeaderCell>수정일</AdminTableHeaderCell>
-							<AdminTableHeaderCell>관리</AdminTableHeaderCell>
-						</AdminTableHeader>
-						<AdminTableBody>
-							{isLoading ? (
-								<AdminTableLoadingRow colSpan={6} />
-							) : prompts.length === 0 ? (
-								<AdminTableEmptyRow colSpan={6} />
-							) : (
-								prompts.map((prompt) => (
-									<AdminTableRow key={prompt.id}>
-										<AdminTableCell>
-											<div className="font-medium">{prompt.name}</div>
-										</AdminTableCell>
-										<AdminTableCell>
-											<Badge variant="outline">
-												{CATEGORY_LABELS[prompt.category] || prompt.category}
-											</Badge>
-										</AdminTableCell>
-										<AdminTableCell>
-											{prompt.type ? (
-												<Badge variant="secondary">
-													{TYPE_LABELS[prompt.type] || prompt.type}
-												</Badge>
-											) : (
-												<span className="text-gray-400">-</span>
-											)}
-										</AdminTableCell>
-										<AdminTableCell>
-											<Badge>v{prompt.version}</Badge>
-										</AdminTableCell>
-										<AdminTableCell>
-											{formatDate(prompt.updated_at)}
-										</AdminTableCell>
-										<AdminTableCell>
-											<div className="flex items-center gap-2">
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => handlePreview(prompt)}
-												>
-													<Eye className="h-4 w-4" />
-												</Button>
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => handleEdit(prompt)}
-												>
-													<Edit className="h-4 w-4" />
-												</Button>
-												{prompt.versions.length > 1 && (
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() => handleRollback(prompt)}
-													>
-														<RotateCcw className="h-4 w-4" />
-													</Button>
-												)}
-											</div>
-										</AdminTableCell>
-									</AdminTableRow>
-								))
-							)}
-						</AdminTableBody>
-					</AdminTable>
-				</CardContent>
-			</Card>
+			<AdminTable>
+				<AdminTableHeader>
+					<AdminTableHeaderCell className="min-w-[200px]">
+						이름
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="min-w-[100px]">
+						타입
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="min-w-[80px]">
+						버전
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="min-w-[120px]">
+						수정일
+					</AdminTableHeaderCell>
+					<AdminTableHeaderCell className="text-right w-[100px]">
+						관리
+					</AdminTableHeaderCell>
+				</AdminTableHeader>
+				<AdminTableBody>
+					{isLoading ? (
+						<AdminTableLoadingRow colSpan={5} />
+					) : prompts.length === 0 ? (
+						<AdminTableEmptyRow
+							colSpan={5}
+							message={
+								searchTerm
+									? "검색 결과가 없습니다."
+									: "등록된 프롬프트가 없습니다."
+							}
+						/>
+					) : (
+						prompts.map((prompt) => (
+							<AdminTableRow key={prompt.id}>
+								<AdminTableCell className="font-medium">
+									{prompt.name}
+								</AdminTableCell>
+								<AdminTableCell>
+									{prompt.type ? (
+										<Badge variant="outline">
+											{TYPE_LABELS[prompt.type] || prompt.type}
+										</Badge>
+									) : (
+										<span className="text-muted-foreground">-</span>
+									)}
+								</AdminTableCell>
+								<AdminTableCell>
+									<Badge variant="default">v{prompt.version}</Badge>
+								</AdminTableCell>
+								<AdminTableCell className="text-sm text-muted-foreground">
+									{formatDate(prompt.updated_at)}
+								</AdminTableCell>
+								<AdminTableCell className="text-right">
+									<ActionDropdown actions={getPromptActions(prompt)} />
+								</AdminTableCell>
+							</AdminTableRow>
+						))
+					)}
+				</AdminTableBody>
+			</AdminTable>
 
 			{/* 수정 다이얼로그 */}
 			<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -394,22 +354,28 @@ export default function AdminPromptsPage() {
 					<DialogHeader>
 						<DialogTitle>프롬프트 수정</DialogTitle>
 					</DialogHeader>
-					<div className="space-y-4">
-						<div>
-							<label className="text-sm font-medium">프롬프트 이름</label>
+					<div className="grid gap-4 py-4">
+						<div className="grid gap-2">
+							<label htmlFor="edit-name" className="text-sm font-medium">
+								프롬프트 이름
+							</label>
 							<Input
+								id="edit-name"
 								value={editedName}
 								onChange={(e) => setEditedName(e.target.value)}
-								placeholder="프롬프트 이름"
+								placeholder="프롬프트 이름을 입력하세요"
 							/>
 						</div>
-						<div>
-							<label className="text-sm font-medium">프롬프트 내용</label>
+						<div className="grid gap-2">
+							<label htmlFor="edit-content" className="text-sm font-medium">
+								프롬프트 내용
+							</label>
 							<Textarea
+								id="edit-content"
 								value={editedContent}
 								onChange={(e) => setEditedContent(e.target.value)}
-								className="min-h-[400px]"
-								placeholder="프롬프트 내용"
+								placeholder="프롬프트 내용을 입력하세요"
+								className="min-h-[300px] resize-y"
 							/>
 						</div>
 					</div>
@@ -419,11 +385,11 @@ export default function AdminPromptsPage() {
 							onClick={() => setIsEditDialogOpen(false)}
 							disabled={isSaving}
 						>
-							<X className="h-4 w-4 mr-2" />
+							<X className="w-4 h-4 mr-2" />
 							취소
 						</Button>
 						<Button onClick={handleSaveEdit} disabled={isSaving}>
-							<Save className="h-4 w-4 mr-2" />
+							<Save className="w-4 h-4 mr-2" />
 							{isSaving ? "저장 중..." : "저장"}
 						</Button>
 					</DialogFooter>
@@ -434,49 +400,70 @@ export default function AdminPromptsPage() {
 			<Dialog open={isPreviewDialogOpen} onOpenChange={setIsPreviewDialogOpen}>
 				<DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
 					<DialogHeader>
-						<DialogTitle>{previewPrompt?.name} - 미리보기</DialogTitle>
+						<DialogTitle>프롬프트 미리보기</DialogTitle>
 					</DialogHeader>
-					<div className="space-y-4">
-						<div>
-							<label className="text-sm font-medium">버전 선택</label>
-							<Select
-								value={previewVersion?.toString()}
-								onValueChange={(value) => setPreviewVersion(parseInt(value))}
-							>
-								<SelectTrigger>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value={previewPrompt?.version.toString() || ""}>
-										v{previewPrompt?.version} (현재)
-									</SelectItem>
-									{previewPrompt?.versions
-										.filter((v) => v.version !== previewPrompt.version)
-										.sort((a, b) => b.version - a.version)
-										.map((version) => (
-											<SelectItem
-												key={version.version}
-												value={version.version.toString()}
-											>
-												v{version.version}
-											</SelectItem>
-										))}
-								</SelectContent>
-							</Select>
-						</div>
-						<div>
-							<label className="text-sm font-medium">프롬프트 내용</label>
-							<Textarea
-								value={
-									previewPrompt && previewVersion
+					{previewPrompt && (
+						<div className="grid gap-4 py-4">
+							<div className="grid gap-2">
+								<label className="text-sm font-medium">프롬프트 이름</label>
+								<div className="p-3 bg-muted rounded-md">
+									{previewPrompt.name}
+								</div>
+							</div>
+							<div className="grid gap-2">
+								<label className="text-sm font-medium">카테고리 / 타입</label>
+								<div className="flex gap-2">
+									<Badge variant="secondary">
+										{CATEGORY_LABELS[previewPrompt.category] ||
+											previewPrompt.category}
+									</Badge>
+									{previewPrompt.type && (
+										<Badge variant="outline">
+											{TYPE_LABELS[previewPrompt.type] || previewPrompt.type}
+										</Badge>
+									)}
+								</div>
+							</div>
+							<div className="grid gap-2">
+								<label className="text-sm font-medium">버전 선택</label>
+								<Select
+									value={previewVersion?.toString()}
+									onValueChange={(value) => setPreviewVersion(Number(value))}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="버전을 선택하세요" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value={previewPrompt.version.toString()}>
+											v{previewPrompt.version} (현재)
+										</SelectItem>
+										{previewPrompt.versions
+											?.filter((v) => v.version !== previewPrompt.version)
+											.sort((a, b) => b.version - a.version)
+											.map((version) => (
+												<SelectItem
+													key={version.version}
+													value={version.version.toString()}
+												>
+													v{version.version} ({formatDate(version.created_at)})
+												</SelectItem>
+											))}
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="grid gap-2">
+								<label className="text-sm font-medium">프롬프트 내용</label>
+								<div className="p-3 bg-muted rounded-md max-h-[300px] overflow-y-auto whitespace-pre-wrap text-sm">
+									{previewVersion
 										? getVersionContent(previewPrompt, previewVersion)
-										: ""
-								}
-								className="min-h-[400px]"
-								readOnly
-							/>
+										: previewPrompt.llm_prompt}
+								</div>
+							</div>
 						</div>
-					</div>
+					)}
+					<DialogFooter>
+						<Button onClick={() => setIsPreviewDialogOpen(false)}>닫기</Button>
+					</DialogFooter>
 				</DialogContent>
 			</Dialog>
 
@@ -487,38 +474,48 @@ export default function AdminPromptsPage() {
 			>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>{rollbackPrompt?.name} - 버전 롤백</DialogTitle>
+						<DialogTitle>프롬프트 버전 롤백</DialogTitle>
 					</DialogHeader>
-					<div className="space-y-4">
-						<p className="text-sm text-muted-foreground">
-							이전 버전으로 롤백합니다. 현재 버전(v{rollbackPrompt?.version})은
-							백업됩니다.
-						</p>
-						<div>
-							<label className="text-sm font-medium">롤백할 버전 선택</label>
-							<Select
-								value={rollbackVersion?.toString() || ""}
-								onValueChange={(value) => setRollbackVersion(parseInt(value))}
-							>
-								<SelectTrigger>
-									<SelectValue placeholder="버전 선택" />
-								</SelectTrigger>
-								<SelectContent>
-									{rollbackPrompt?.versions
-										.filter((v) => v.version !== rollbackPrompt.version)
-										.sort((a, b) => b.version - a.version)
-										.map((version) => (
-											<SelectItem
-												key={version.version}
-												value={version.version.toString()}
-											>
-												v{version.version}
-											</SelectItem>
-										))}
-								</SelectContent>
-							</Select>
+					{rollbackPrompt && (
+						<div className="grid gap-4 py-4">
+							<div className="text-sm text-muted-foreground">
+								<strong>{rollbackPrompt.name}</strong> 프롬프트를 이전 버전으로
+								되돌립니다.
+							</div>
+							<div className="grid gap-2">
+								<label className="text-sm font-medium">롤백할 버전 선택</label>
+								<Select
+									value={rollbackVersion?.toString()}
+									onValueChange={(value) => setRollbackVersion(Number(value))}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="롤백할 버전을 선택하세요" />
+									</SelectTrigger>
+									<SelectContent>
+										{rollbackPrompt.versions
+											?.filter((v) => v.version !== rollbackPrompt.version)
+											.sort((a, b) => b.version - a.version)
+											.map((version) => (
+												<SelectItem
+													key={version.version}
+													value={version.version.toString()}
+												>
+													v{version.version} ({formatDate(version.created_at)})
+												</SelectItem>
+											))}
+									</SelectContent>
+								</Select>
+							</div>
+							{rollbackVersion && (
+								<div className="grid gap-2">
+									<label className="text-sm font-medium">미리보기</label>
+									<div className="p-3 bg-muted rounded-md max-h-[200px] overflow-y-auto text-sm">
+										{getVersionContent(rollbackPrompt, rollbackVersion)}
+									</div>
+								</div>
+							)}
 						</div>
-					</div>
+					)}
 					<DialogFooter>
 						<Button
 							variant="outline"
@@ -527,12 +524,12 @@ export default function AdminPromptsPage() {
 							취소
 						</Button>
 						<Button onClick={handleConfirmRollback} disabled={!rollbackVersion}>
-							<RotateCcw className="h-4 w-4 mr-2" />
+							<RotateCcw className="w-4 h-4 mr-2" />
 							롤백 실행
 						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</div>
+		</AdminPageLayout>
 	);
 }

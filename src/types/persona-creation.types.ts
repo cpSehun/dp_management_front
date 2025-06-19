@@ -4,6 +4,12 @@ export interface Step1Data {
 	personaType: PersonaType;
 	model: string;
 	concept: string;
+	// 추가 필드들
+	inputMode?: "auto" | "manual"; // 사용한 입력 모드
+	generatedConcept?: string; // 자동 생성된 컨셉
+	directConcept?: string; // 직접 입력한 컨셉
+	conceptPrompt?: string; // 사용한 프롬프트
+	useCustomPrompt?: boolean; // 커스텀 프롬프트 사용 여부
 }
 
 export interface Step2Data {
