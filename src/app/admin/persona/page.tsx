@@ -28,52 +28,42 @@ import { ActionDropdown, ActionItem } from "@/components/admin/ActionDropdown";
 import { AdminPagination } from "@/components/admin/AdminPagination";
 import { PersonaCreationDialog } from "@/components/admin/persona/PersonaCreationDialog";
 
-// 기존 타입들 유지
+// t_persona 테이블 구조에 맞춘 타입 정의
 interface Persona {
-	id: number;
+	seq: number;
+	id: string | null;
+	type: string;
 	name: string;
-	ageGroup: string;
-	gender: string;
-	personality: string;
-	statusMessage: string;
-	tags: string[];
-	imagePrompt?: string;
-	personalityPrompt?: string;
-	createdAt: string;
+	user_id: number | null;
+	status: string;
+	model_id: string | null;
+	tags: any[] | null;
+	properties: any | null;
+	summary: string | null;
+	llm_prompt: string | null;
+	chat_opening: string | null;
+	background: string | null;
+	created_at: string;
+	updated_at: string | null;
 }
 
-// 기존 샘플 데이터 유지 (추후 DB 연동)
-const initialPersonas: Persona[] = [
-	{
-		id: 1,
-		name: "김철수",
-		ageGroup: "20대 초반",
-		gender: "남성",
-		personality: "활발함, 사교적",
-		statusMessage: "오늘도 열심히 살아보자!",
-		tags: ["대학생", "취준생", "운동", "게임"],
-		personalityPrompt:
-			"당신은 활발하고 사교적인 20대 초반 대학생입니다. 운동과 게임을 좋아하며 항상 긍정적인 에너지를 가지고 있습니다.",
-		createdAt: "2023-08-15T10:30:00Z",
-	},
-	{
-		id: 2,
-		name: "이영희",
-		ageGroup: "30대 후반",
-		gender: "여성",
-		personality: "차분함, 논리적",
-		statusMessage: "행복은 일상 속에 있어요",
-		tags: ["직장인", "여행", "요리", "독서"],
-		personalityPrompt:
-			"당신은 차분하고 논리적인 30대 후반 직장인 여성입니다. 여행과 요리, 독서를 좋아하며 일상 속 작은 행복을 소중히 여깁니다.",
-		createdAt: "2023-09-05T14:20:00Z",
-	},
-];
+// 타입 라벨 맵핑
+const TYPE_LABELS: Record<string, string> = {
+	CHAR: "캐릭터",
+	STORY: "스토리",
+};
+
+// 상태 라벨 맵핑
+const STATUS_LABELS: Record<string, string> = {
+	ACTIVE: "활성",
+	INACTIVE: "비활성",
+};
 
 const ITEMS_PER_PAGE = 5;
 
 // 날짜 포맷팅 함수
-const formatDate = (dateString: string) => {
+const formatDate = (dateString: string | null) => {
+	if (!dateString) return "-";
 	const date = new Date(dateString);
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
 		2,
@@ -82,12 +72,12 @@ const formatDate = (dateString: string) => {
 };
 
 export default function PersonaPage() {
-	const [personas, setPersonas] = useState<Persona[]>(initialPersonas);
+	const [personas, setPersonas] = useState<Persona[]>([]);
 	const [searchTerm, setSearchTerm] = useState("");
-	const [filteredPersonas, setFilteredPersonas] = useState<Persona[]>(personas);
+	const [filteredPersonas, setFilteredPersonas] = useState<Persona[]>([]);
 	const [currentPage, setCurrentPage] = useState(1);
 	const [paginatedPersonas, setPaginatedPersonas] = useState<Persona[]>([]);
-	const [isLoading, setIsLoading] = useState(false);
+	const [isLoading, setIsLoading] = useState(true);
 
 	// 페르소나 생성 다이얼로그 상태
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -95,6 +85,43 @@ export default function PersonaPage() {
 	// 기존 모달 상태들 유지
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [currentPersona, setCurrentPersona] = useState<Persona | null>(null);
+
+	// t_persona 테이블에서 데이터 조회
+	const fetchPersonas = async () => {
+		setIsLoading(true);
+		try {
+			const token = localStorage.getItem("access_token");
+			if (!token) {
+				console.error("No access token found");
+				return;
+			}
+
+			// 외부 DB의 t_persona 테이블 데이터 조회 API 호출
+			const response = await fetch("/api/v1/persona/", {
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+
+			const data: Persona[] = await response.json();
+			setPersonas(data);
+		} catch (error) {
+			console.error("Error fetching personas:", error);
+			// 에러 발생 시 빈 배열로 설정
+			setPersonas([]);
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	// 컴포넌트 마운트 시 데이터 로드
+	useEffect(() => {
+		fetchPersonas();
+	}, []);
 
 	// 검색 및 페이지네이션 기능
 	useEffect(() => {
@@ -105,13 +132,13 @@ export default function PersonaPage() {
 			const filtered = personas.filter((persona) => {
 				return (
 					persona.name.toLowerCase().includes(lowercasedSearch) ||
-					persona.ageGroup.toLowerCase().includes(lowercasedSearch) ||
-					persona.gender.toLowerCase().includes(lowercasedSearch) ||
-					persona.personality.toLowerCase().includes(lowercasedSearch) ||
-					persona.statusMessage.toLowerCase().includes(lowercasedSearch) ||
-					persona.tags.some((tag) =>
-						tag.toLowerCase().includes(lowercasedSearch)
-					)
+					(persona.id && persona.id.toLowerCase().includes(lowercasedSearch)) ||
+					persona.type.toLowerCase().includes(lowercasedSearch) ||
+					persona.status.toLowerCase().includes(lowercasedSearch) ||
+					(persona.model_id &&
+						persona.model_id.toLowerCase().includes(lowercasedSearch)) ||
+					(persona.summary &&
+						persona.summary.toLowerCase().includes(lowercasedSearch))
 				);
 			});
 			setFilteredPersonas(filtered);
@@ -151,8 +178,12 @@ export default function PersonaPage() {
 	// 페르소나 삭제 실행
 	const handleConfirmDelete = () => {
 		if (currentPersona) {
+			// 실제 삭제 API 호출은 여기서 구현 필요
+			console.log("페르소나 삭제:", currentPersona);
+
+			// 임시로 로컬 상태에서만 제거
 			const updatedPersonas = personas.filter(
-				(p) => p.id !== currentPersona.id
+				(p) => p.seq !== currentPersona.seq
 			);
 			setPersonas(updatedPersonas);
 			setIsDeleteDialogOpen(false);
@@ -162,11 +193,10 @@ export default function PersonaPage() {
 
 	// 페르소나 생성 완료 핸들러
 	const handlePersonaCreated = (newPersona: any) => {
-		// 실제로는 DB에서 생성된 페르소나를 가져와야 함
 		console.log("새 페르소나 생성됨:", newPersona);
 
-		// 목록 새로고침 (임시)
-		// fetchPersonas();
+		// 페르소나 목록 새로고침
+		fetchPersonas();
 
 		setIsCreateDialogOpen(false);
 		alert("페르소나가 성공적으로 생성되었습니다!");
@@ -193,7 +223,7 @@ export default function PersonaPage() {
 			<AdminPageLayout>
 				<AdminPageHeader
 					title="페르소나 관리"
-					searchPlaceholder="이름, 태그, 특성 등 검색..."
+					searchPlaceholder="이름, ID, 타입, 상태 등 검색..."
 					searchValue={searchTerm}
 					onSearchChange={setSearchTerm}
 					onCreateClick={handleCreatePersona}
@@ -201,18 +231,25 @@ export default function PersonaPage() {
 				/>
 				<AdminTable>
 					<AdminTableHeader>
+						<AdminTableHeaderCell>SEQ</AdminTableHeaderCell>
+						<AdminTableHeaderCell>ID</AdminTableHeaderCell>
+						<AdminTableHeaderCell>타입</AdminTableHeaderCell>
 						<AdminTableHeaderCell>이름</AdminTableHeaderCell>
-						<AdminTableHeaderCell>나이대</AdminTableHeaderCell>
-						<AdminTableHeaderCell>성별</AdminTableHeaderCell>
-						<AdminTableHeaderCell>성격</AdminTableHeaderCell>
-						<AdminTableHeaderCell>상태메시지</AdminTableHeaderCell>
-						<AdminTableHeaderCell>태그</AdminTableHeaderCell>
+						<AdminTableHeaderCell>사용자ID</AdminTableHeaderCell>
+						<AdminTableHeaderCell>상태</AdminTableHeaderCell>
+						<AdminTableHeaderCell>모델ID</AdminTableHeaderCell>
 						<AdminTableHeaderCell>생성일</AdminTableHeaderCell>
+						<AdminTableHeaderCell>수정일</AdminTableHeaderCell>
 						<AdminTableHeaderCell className="text-right">
 							관리
 						</AdminTableHeaderCell>
 					</AdminTableHeader>
-					<AdminTableBody>{/* 로딩 행 표시 */}</AdminTableBody>
+					<AdminTableBody>
+						<AdminTableEmptyRow
+							colSpan={10}
+							message="데이터를 불러오는 중입니다..."
+						/>
+					</AdminTableBody>
 				</AdminTable>
 			</AdminPageLayout>
 		);
@@ -222,7 +259,7 @@ export default function PersonaPage() {
 		<AdminPageLayout>
 			<AdminPageHeader
 				title="페르소나 관리"
-				searchPlaceholder="이름, 태그, 특성 등 검색..."
+				searchPlaceholder="이름, ID, 타입, 상태 등 검색..."
 				searchValue={searchTerm}
 				onSearchChange={setSearchTerm}
 				onCreateClick={handleCreatePersona}
@@ -231,13 +268,15 @@ export default function PersonaPage() {
 
 			<AdminTable>
 				<AdminTableHeader>
+					<AdminTableHeaderCell>SEQ</AdminTableHeaderCell>
+					<AdminTableHeaderCell>ID</AdminTableHeaderCell>
+					<AdminTableHeaderCell>타입</AdminTableHeaderCell>
 					<AdminTableHeaderCell>이름</AdminTableHeaderCell>
-					<AdminTableHeaderCell>나이대</AdminTableHeaderCell>
-					<AdminTableHeaderCell>성별</AdminTableHeaderCell>
-					<AdminTableHeaderCell>성격</AdminTableHeaderCell>
-					<AdminTableHeaderCell>상태메시지</AdminTableHeaderCell>
-					<AdminTableHeaderCell>태그</AdminTableHeaderCell>
+					<AdminTableHeaderCell>사용자ID</AdminTableHeaderCell>
+					<AdminTableHeaderCell>상태</AdminTableHeaderCell>
+					<AdminTableHeaderCell>모델ID</AdminTableHeaderCell>
 					<AdminTableHeaderCell>생성일</AdminTableHeaderCell>
+					<AdminTableHeaderCell>수정일</AdminTableHeaderCell>
 					<AdminTableHeaderCell className="text-right">
 						관리
 					</AdminTableHeaderCell>
@@ -245,7 +284,7 @@ export default function PersonaPage() {
 				<AdminTableBody>
 					{paginatedPersonas.length === 0 ? (
 						<AdminTableEmptyRow
-							colSpan={8}
+							colSpan={10}
 							message={
 								searchTerm
 									? "검색 결과가 없습니다."
@@ -254,33 +293,50 @@ export default function PersonaPage() {
 						/>
 					) : (
 						paginatedPersonas.map((persona) => (
-							<AdminTableRow key={persona.id}>
+							<AdminTableRow key={persona.seq}>
+								<AdminTableCell className="font-medium">
+									{persona.seq}
+								</AdminTableCell>
+								<AdminTableCell className="font-mono text-sm">
+									{persona.id || "-"}
+								</AdminTableCell>
+								<AdminTableCell>
+									{persona.type ? (
+										<Badge variant="outline">
+											{TYPE_LABELS[persona.type] || persona.type}
+										</Badge>
+									) : (
+										"-"
+									)}
+								</AdminTableCell>
 								<AdminTableCell className="font-medium">
 									{persona.name}
 								</AdminTableCell>
-								<AdminTableCell>{persona.ageGroup}</AdminTableCell>
-								<AdminTableCell>{persona.gender}</AdminTableCell>
-								<AdminTableCell>{persona.personality}</AdminTableCell>
-								<AdminTableCell className="max-w-xs">
-									<div className="truncate" title={persona.statusMessage}>
-										{persona.statusMessage}
-									</div>
-								</AdminTableCell>
+								<AdminTableCell>{persona.user_id || "-"}</AdminTableCell>
 								<AdminTableCell>
-									<div className="flex flex-wrap gap-1">
-										{persona.tags.slice(0, 2).map((tag) => (
-											<Badge key={tag} variant="outline" className="text-xs">
-												{tag}
-											</Badge>
-										))}
-										{persona.tags.length > 2 && (
-											<Badge variant="secondary" className="text-xs">
-												+{persona.tags.length - 2}
-											</Badge>
-										)}
-									</div>
+									<Badge
+										variant={
+											persona.status === "ACTIVE" ? "default" : "secondary"
+										}
+									>
+										{STATUS_LABELS[persona.status] || persona.status}
+									</Badge>
 								</AdminTableCell>
-								<AdminTableCell>{formatDate(persona.createdAt)}</AdminTableCell>
+								<AdminTableCell className="font-mono text-sm">
+									{persona.model_id ? (
+										<span className="truncate block max-w-24">
+											{persona.model_id}
+										</span>
+									) : (
+										"-"
+									)}
+								</AdminTableCell>
+								<AdminTableCell className="text-sm text-muted-foreground">
+									{formatDate(persona.created_at)}
+								</AdminTableCell>
+								<AdminTableCell className="text-sm text-muted-foreground">
+									{formatDate(persona.updated_at)}
+								</AdminTableCell>
 								<AdminTableCell className="text-right">
 									<ActionDropdown actions={getPersonaActions(persona)} />
 								</AdminTableCell>
