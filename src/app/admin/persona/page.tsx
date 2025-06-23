@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Plus, User } from "lucide-react";
+import { Edit, Trash2, Plus, User, Eye } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
 import {
 	Dialog,
 	DialogContent,
@@ -78,27 +80,36 @@ export default function PersonaPage() {
 	const [currentPage, setCurrentPage] = useState(1);
 	const [paginatedPersonas, setPaginatedPersonas] = useState<Persona[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+
+	// 🔥 users 패턴: 상태 필터 추가
+	const [activeFilter, setActiveFilter] = useState<
+		"all" | "active" | "inactive" | "char" | "story"
+	>("all");
 
 	// 페르소나 생성 다이얼로그 상태
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
+	// 🔥 users 패턴: 상세보기 다이얼로그 상태 추가
+	const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
+	const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+
 	// 기존 모달 상태들 유지
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [currentPersona, setCurrentPersona] = useState<Persona | null>(null);
-	const [error, setError] = useState<string | null>(null);
 
 	// t_persona 테이블에서 데이터 조회
 	const fetchPersonas = async () => {
 		setIsLoading(true);
-		setError(null); // 에러 초기화
+		setError(null);
 		try {
 			const token = localStorage.getItem("access_token");
 			if (!token) {
 				throw new Error("로그인이 필요합니다.");
 			}
 
-			// Next.js rewrites를 통해 프록시 사용 (끝의 "/" 제거)
-			const response = await fetch("/api/v1/persona", {
+			// 통일된 패턴: 슬래시 없음, limit 1000
+			const response = await fetch("/api/v1/persona?limit=1000", {
 				method: "GET",
 				headers: {
 					"Content-Type": "application/json",
@@ -119,7 +130,7 @@ export default function PersonaPage() {
 					? error.message
 					: "알 수 없는 오류가 발생했습니다."
 			);
-			setPersonas([]); // 에러 시 빈 배열로 설정
+			setPersonas([]);
 		} finally {
 			setIsLoading(false);
 		}
@@ -130,28 +141,50 @@ export default function PersonaPage() {
 		fetchPersonas();
 	}, []);
 
-	// 검색 및 페이지네이션 기능
+	// 🔥 users 패턴: 필터링 로직 강화
 	useEffect(() => {
-		if (searchTerm.trim() === "") {
-			setFilteredPersonas(personas);
-		} else {
+		let filtered = [...personas];
+
+		// 검색 필터 적용
+		if (searchTerm.trim() !== "") {
 			const lowercasedSearch = searchTerm.toLowerCase();
-			const filtered = personas.filter((persona) => {
+			filtered = filtered.filter((persona) => {
 				return (
 					persona.name.toLowerCase().includes(lowercasedSearch) ||
 					(persona.id && persona.id.toLowerCase().includes(lowercasedSearch)) ||
 					persona.type.toLowerCase().includes(lowercasedSearch) ||
 					persona.status.toLowerCase().includes(lowercasedSearch) ||
+					(persona.user_id &&
+						persona.user_id.toString().includes(lowercasedSearch)) ||
 					(persona.model_id &&
 						persona.model_id.toLowerCase().includes(lowercasedSearch)) ||
 					(persona.summary &&
 						persona.summary.toLowerCase().includes(lowercasedSearch))
 				);
 			});
-			setFilteredPersonas(filtered);
 		}
+
+		// 🔥 상태 필터 적용
+		switch (activeFilter) {
+			case "active":
+				filtered = filtered.filter((persona) => persona.status === "ACTIVE");
+				break;
+			case "inactive":
+				filtered = filtered.filter((persona) => persona.status === "INACTIVE");
+				break;
+			case "char":
+				filtered = filtered.filter((persona) => persona.type === "CHAR");
+				break;
+			case "story":
+				filtered = filtered.filter((persona) => persona.type === "STORY");
+				break;
+			default:
+				break;
+		}
+
+		setFilteredPersonas(filtered);
 		setCurrentPage(1);
-	}, [searchTerm, personas]);
+	}, [searchTerm, personas, activeFilter]);
 
 	// 페이지네이션 처리
 	useEffect(() => {
@@ -169,6 +202,12 @@ export default function PersonaPage() {
 	// 페르소나 생성 핸들러
 	const handleCreatePersona = () => {
 		setIsCreateDialogOpen(true);
+	};
+
+	// 🔥 users 패턴: 상세보기 핸들러 추가
+	const handleViewPersona = (persona: Persona) => {
+		setSelectedPersona(persona);
+		setIsDetailDialogOpen(true);
 	};
 
 	// 페르소나 수정
@@ -201,16 +240,19 @@ export default function PersonaPage() {
 	// 페르소나 생성 완료 핸들러
 	const handlePersonaCreated = (newPersona: any) => {
 		console.log("새 페르소나 생성됨:", newPersona);
-
 		// 페르소나 목록 새로고침
 		fetchPersonas();
-
 		setIsCreateDialogOpen(false);
 		alert("페르소나가 성공적으로 생성되었습니다!");
 	};
 
-	// 각 페르소나의 액션 메뉴 생성
+	// 🔥 users 패턴: 액션 메뉴 생성
 	const getPersonaActions = (persona: Persona): ActionItem[] => [
+		{
+			label: "상세보기",
+			icon: <Eye className="h-4 w-4" />,
+			onClick: () => handleViewPersona(persona),
+		},
 		{
 			label: "수정",
 			icon: <Edit className="h-4 w-4" />,
@@ -224,13 +266,36 @@ export default function PersonaPage() {
 		},
 	];
 
+	// 에러 상태 처리
+	if (error) {
+		return (
+			<AdminPageLayout>
+				<AdminPageHeader
+					title="페르소나 관리"
+					searchPlaceholder="이름, ID, 타입, 상태, 사용자ID 등 검색..."
+					searchValue={searchTerm}
+					onSearchChange={setSearchTerm}
+					onCreateClick={handleCreatePersona}
+					createButtonText="페르소나 생성"
+				/>
+				<div className="flex flex-col items-center justify-center p-8 text-center">
+					<div className="text-red-500 text-lg font-medium mb-2">오류 발생</div>
+					<div className="text-gray-600 mb-4">{error}</div>
+					<Button onClick={fetchPersonas} variant="outline">
+						다시 시도
+					</Button>
+				</div>
+			</AdminPageLayout>
+		);
+	}
+
 	// 초기 로딩 상태
 	if (isLoading) {
 		return (
 			<AdminPageLayout>
 				<AdminPageHeader
 					title="페르소나 관리"
-					searchPlaceholder="이름, ID, 타입, 상태 등 검색..."
+					searchPlaceholder="이름, ID, 타입, 상태, 사용자ID 등 검색..."
 					searchValue={searchTerm}
 					onSearchChange={setSearchTerm}
 					onCreateClick={handleCreatePersona}
@@ -261,38 +326,40 @@ export default function PersonaPage() {
 			</AdminPageLayout>
 		);
 	}
-	if (error) {
-		return (
-			<AdminPageLayout>
-				<AdminPageHeader
-					title="페르소나 관리"
-					searchPlaceholder="이름, ID, 타입, 상태 등 검색..."
-					searchValue={searchTerm}
-					onSearchChange={setSearchTerm}
-					onCreateClick={handleCreatePersona}
-					createButtonText="페르소나 생성"
-				/>
-				<div className="flex flex-col items-center justify-center p-8 text-center">
-					<div className="text-red-500 text-lg font-medium mb-2">오류 발생</div>
-					<div className="text-gray-600 mb-4">{error}</div>
-					<Button onClick={fetchPersonas} variant="outline">
-						다시 시도
-					</Button>
-				</div>
-			</AdminPageLayout>
-		);
-	}
 
 	return (
 		<AdminPageLayout>
 			<AdminPageHeader
 				title="페르소나 관리"
-				searchPlaceholder="이름, ID, 타입, 상태 등 검색..."
+				searchPlaceholder="이름, ID, 타입, 상태, 사용자ID 등 검색..."
 				searchValue={searchTerm}
 				onSearchChange={setSearchTerm}
 				onCreateClick={handleCreatePersona}
 				createButtonText="페르소나 생성"
 			/>
+
+			{/* 🔥 users 패턴: 필터 탭 추가 */}
+			<Tabs
+				value={activeFilter}
+				onValueChange={(value) => setActiveFilter(value as any)}
+				className="w-full mb-6"
+			>
+				<TabsList className="grid w-full grid-cols-5">
+					<TabsTrigger value="all">전체 ({personas.length})</TabsTrigger>
+					<TabsTrigger value="active" className="text-green-600">
+						활성 ({personas.filter((p) => p.status === "ACTIVE").length})
+					</TabsTrigger>
+					<TabsTrigger value="inactive" className="text-red-600">
+						비활성 ({personas.filter((p) => p.status === "INACTIVE").length})
+					</TabsTrigger>
+					<TabsTrigger value="char" className="text-blue-600">
+						캐릭터 ({personas.filter((p) => p.type === "CHAR").length})
+					</TabsTrigger>
+					<TabsTrigger value="story" className="text-purple-600">
+						스토리 ({personas.filter((p) => p.type === "STORY").length})
+					</TabsTrigger>
+				</TabsList>
+			</Tabs>
 
 			<AdminTable>
 				<AdminTableHeader>
@@ -314,7 +381,7 @@ export default function PersonaPage() {
 						<AdminTableEmptyRow
 							colSpan={10}
 							message={
-								searchTerm
+								searchTerm || activeFilter !== "all"
 									? "검색 결과가 없습니다."
 									: "등록된 페르소나가 없습니다."
 							}
@@ -330,9 +397,19 @@ export default function PersonaPage() {
 								</AdminTableCell>
 								<AdminTableCell>
 									{persona.type ? (
-										<Badge variant="outline">
-											{TYPE_LABELS[persona.type] || persona.type}
-										</Badge>
+										persona.type === "CHAR" ? (
+											<Badge className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 border border-blue-200">
+												CHAR
+											</Badge>
+										) : persona.type === "STORY" ? (
+											<Badge className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800 border border-purple-200">
+												STORY
+											</Badge>
+										) : (
+											<Badge variant="outline">
+												{TYPE_LABELS[persona.type] || persona.type}
+											</Badge>
+										)
 									) : (
 										"-"
 									)}
@@ -342,13 +419,15 @@ export default function PersonaPage() {
 								</AdminTableCell>
 								<AdminTableCell>{persona.user_id || "-"}</AdminTableCell>
 								<AdminTableCell>
-									<Badge
-										variant={
-											persona.status === "ACTIVE" ? "default" : "secondary"
-										}
-									>
-										{STATUS_LABELS[persona.status] || persona.status}
-									</Badge>
+									{persona.status === "ACTIVE" ? (
+										<Badge className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 border border-green-200">
+											ACTIVE
+										</Badge>
+									) : (
+										<Badge className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 border border-red-200">
+											INACTIVE
+										</Badge>
+									)}
 								</AdminTableCell>
 								<AdminTableCell className="font-mono text-sm">
 									{persona.model_id ? (
@@ -390,6 +469,145 @@ export default function PersonaPage() {
 				onClose={() => setIsCreateDialogOpen(false)}
 				onPersonaCreated={handlePersonaCreated}
 			/>
+
+			{/* 🔥 users 패턴: 상세보기 다이얼로그 추가 */}
+			{selectedPersona && (
+				<Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+					<DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+						<DialogHeader>
+							<DialogTitle>페르소나 상세 정보</DialogTitle>
+							<DialogDescription>
+								{selectedPersona.name}의 상세 정보입니다.
+							</DialogDescription>
+						</DialogHeader>
+						<div className="grid gap-4 py-4">
+							<div className="grid grid-cols-3 items-center gap-4">
+								<Label className="font-medium">SEQ:</Label>
+								<span className="col-span-2 text-sm text-slate-700">
+									{selectedPersona.seq}
+								</span>
+							</div>
+							<div className="grid grid-cols-3 items-center gap-4">
+								<Label className="font-medium">ID:</Label>
+								<span className="col-span-2 text-sm text-slate-700 font-mono">
+									{selectedPersona.id || "설정되지 않음"}
+								</span>
+							</div>
+							<div className="grid grid-cols-3 items-center gap-4">
+								<Label className="font-medium">이름:</Label>
+								<span className="col-span-2 text-sm text-slate-700 font-medium">
+									{selectedPersona.name}
+								</span>
+							</div>
+							<div className="grid grid-cols-3 items-center gap-4">
+								<Label className="font-medium">타입:</Label>
+								<div className="col-span-2">
+									{selectedPersona.type === "CHAR" ? (
+										<Badge className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 border border-blue-200">
+											캐릭터
+										</Badge>
+									) : selectedPersona.type === "STORY" ? (
+										<Badge className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800 border border-purple-200">
+											스토리
+										</Badge>
+									) : (
+										<Badge variant="outline">
+											{TYPE_LABELS[selectedPersona.type] ||
+												selectedPersona.type}
+										</Badge>
+									)}
+								</div>
+							</div>
+							<div className="grid grid-cols-3 items-center gap-4">
+								<Label className="font-medium">상태:</Label>
+								<div className="col-span-2">
+									{selectedPersona.status === "ACTIVE" ? (
+										<Badge className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 border border-green-200">
+											활성
+										</Badge>
+									) : (
+										<Badge className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 border border-red-200">
+											비활성
+										</Badge>
+									)}
+								</div>
+							</div>
+							<div className="grid grid-cols-3 items-center gap-4">
+								<Label className="font-medium">사용자ID:</Label>
+								<span className="col-span-2 text-sm text-slate-700">
+									{selectedPersona.user_id || "설정되지 않음"}
+								</span>
+							</div>
+							<div className="grid grid-cols-3 items-center gap-4">
+								<Label className="font-medium">모델ID:</Label>
+								<span className="col-span-2 text-sm text-slate-700 font-mono">
+									{selectedPersona.model_id || "설정되지 않음"}
+								</span>
+							</div>
+							<div className="grid grid-cols-3 items-center gap-4">
+								<Label className="font-medium">요약:</Label>
+								<span className="col-span-2 text-sm text-slate-700">
+									{selectedPersona.summary || "설정되지 않음"}
+								</span>
+							</div>
+							<div className="grid grid-cols-3 items-start gap-4">
+								<Label className="font-medium">프롬프트:</Label>
+								<div className="col-span-2 text-sm text-slate-700 max-h-32 overflow-y-auto border rounded p-2 bg-gray-50">
+									{selectedPersona.llm_prompt || "설정되지 않음"}
+								</div>
+							</div>
+							<div className="grid grid-cols-3 items-start gap-4">
+								<Label className="font-medium">시작멘트:</Label>
+								<div className="col-span-2 text-sm text-slate-700 max-h-32 overflow-y-auto border rounded p-2 bg-gray-50">
+									{selectedPersona.chat_opening || "설정되지 않음"}
+								</div>
+							</div>
+							<div className="grid grid-cols-3 items-start gap-4">
+								<Label className="font-medium">배경설정:</Label>
+								<div className="col-span-2 text-sm text-slate-700 max-h-32 overflow-y-auto border rounded p-2 bg-gray-50">
+									{selectedPersona.background || "설정되지 않음"}
+								</div>
+							</div>
+							<div className="grid grid-cols-3 items-center gap-4">
+								<Label className="font-medium">생성일:</Label>
+								<span className="col-span-2 text-sm text-slate-700">
+									{formatDate(selectedPersona.created_at)}
+								</span>
+							</div>
+							<div className="grid grid-cols-3 items-center gap-4">
+								<Label className="font-medium">수정일:</Label>
+								<span className="col-span-2 text-sm text-slate-700">
+									{formatDate(selectedPersona.updated_at)}
+								</span>
+							</div>
+							{selectedPersona.tags && (
+								<div className="grid grid-cols-3 items-start gap-4">
+									<Label className="font-medium">태그:</Label>
+									<div className="col-span-2 text-sm text-slate-700">
+										{JSON.stringify(selectedPersona.tags, null, 2)}
+									</div>
+								</div>
+							)}
+							{selectedPersona.properties && (
+								<div className="grid grid-cols-3 items-start gap-4">
+									<Label className="font-medium">속성:</Label>
+									<div className="col-span-2 text-sm text-slate-700 max-h-32 overflow-y-auto border rounded p-2 bg-gray-50 font-mono">
+										{JSON.stringify(selectedPersona.properties, null, 2)}
+									</div>
+								</div>
+							)}
+						</div>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setIsDetailDialogOpen(false)}
+							>
+								닫기
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			)}
 
 			{/* 삭제 확인 다이얼로그 */}
 			<Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
