@@ -414,7 +414,7 @@ export default function PersonaPage() {
 										"-"
 									)}
 								</AdminTableCell>
-								<AdminTableCell className="font-medium">
+								<AdminTableCell className="font-medium whitespace-nowrap">
 									{persona.name}
 								</AdminTableCell>
 								<AdminTableCell>{persona.user_id || "-"}</AdminTableCell>
@@ -429,11 +429,14 @@ export default function PersonaPage() {
 										</Badge>
 									)}
 								</AdminTableCell>
-								<AdminTableCell className="font-mono text-sm">
+								<AdminTableCell>
 									{persona.model_id ? (
-										<span className="truncate block max-w-24">
+										<Badge
+											variant="outline"
+											className="font-mono text-xs whitespace-nowrap"
+										>
 											{persona.model_id}
-										</span>
+										</Badge>
 									) : (
 										"-"
 									)}
@@ -540,9 +543,20 @@ export default function PersonaPage() {
 							</div>
 							<div className="grid grid-cols-3 items-center gap-4">
 								<Label className="font-medium">모델ID:</Label>
-								<span className="col-span-2 text-sm text-slate-700 font-mono">
-									{selectedPersona.model_id || "설정되지 않음"}
-								</span>
+								<div className="col-span-2">
+									{selectedPersona.model_id ? (
+										<Badge
+											variant="outline"
+											className="font-mono text-xs px-2 py-1"
+										>
+											{selectedPersona.model_id}
+										</Badge>
+									) : (
+										<span className="text-sm text-slate-700">
+											설정되지 않음
+										</span>
+									)}
+								</div>
 							</div>
 							<div className="grid grid-cols-3 items-center gap-4">
 								<Label className="font-medium">요약:</Label>
