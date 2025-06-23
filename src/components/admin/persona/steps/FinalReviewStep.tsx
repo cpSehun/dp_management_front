@@ -73,28 +73,34 @@ export function FinalReviewStep() {
 		return "";
 	};
 
-	// 첫 대사 및 지문 부분을 제외한 페르소나 정보 생성 (프로필정보부터 성향까지 포함)
+	// 첫 대사 및 지문 부분을 제외한 페르소나 정보 생성 (## 페르소나 정보 헤더도 제외)
 	const extractLLMPrompt = (personaInfo: string): string => {
+		let content = personaInfo;
+
+		// "## 페르소나 정보" 헤더 제거
+		content = content.replace(/^##\s*페르소나\s*정보\s*\n?/m, "").trim();
+
 		// "# 첫 대사 및 지문" 섹션을 찾아서 제거
-		const firstDialogIndex = personaInfo.indexOf("# 첫 대사 및 지문");
+		const firstDialogIndex = content.indexOf("# 첫 대사 및 지문");
 		if (firstDialogIndex !== -1) {
 			// "# 첫 대사 및 지문" 이전 부분만 반환
-			return personaInfo.substring(0, firstDialogIndex).trim();
+			content = content.substring(0, firstDialogIndex).trim();
+		} else {
+			// 만약 헤더가 없다면 대화 라인들을 찾아서 제거
+			const lines = content.split("\n");
+			const filteredLines = lines.filter((line) => {
+				// 대화 형태의 라인 제거 ("대파:", "아현:" 등)
+				return !(
+					line.includes(":") &&
+					(line.includes("대파") ||
+						line.includes("아현") ||
+						line.match(/[가-힣A-Za-z]+:\s*\(/))
+				);
+			});
+			content = filteredLines.join("\n").trim();
 		}
 
-		// 만약 헤더가 없다면 대화 라인들을 찾아서 제거
-		const lines = personaInfo.split("\n");
-		const filteredLines = lines.filter((line) => {
-			// 대화 형태의 라인 제거 ("대파:", "아현:" 등)
-			return !(
-				line.includes(":") &&
-				(line.includes("대파") ||
-					line.includes("아현") ||
-					line.match(/[가-힣A-Za-z]+:\s*\(/))
-			);
-		});
-
-		return filteredLines.join("\n").trim();
+		return content;
 	};
 
 	// 최신 user_id 가져오기 (자기 자신 참조)
@@ -179,7 +185,7 @@ INSERT INTO daepa_agent.t_persona (
 -- status: INACTIVE
 -- model_id: google/gemini-2.0-flash-001
 -- tags: ${tagsJson}
--- properties: NULL
+-- properties: NULL (JSON 타입에서 가장 비어있는 상태)
 -- summary: ${data.step3.summary}
 -- llm_prompt: (${llmPrompt.length}자)
 -- chat_opening: (${chatOpening.length}자)
@@ -263,7 +269,7 @@ INSERT INTO daepa_agent.t_persona (
 					status: "INACTIVE",
 					model_id: "google/gemini-2.0-flash-001", // 고정값
 					tags: data.step3.tags,
-					properties: null,
+					properties: null, // JSON 타입에서 가장 "비어있음"에 가까운 NULL
 					summary: data.step3.summary,
 					llm_prompt: extractLLMPrompt(data.step2.personaInfo),
 					chat_opening: extractChatOpening(data.step2.personaInfo),
