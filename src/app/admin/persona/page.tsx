@@ -85,20 +85,23 @@ export default function PersonaPage() {
 	// 기존 모달 상태들 유지
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [currentPersona, setCurrentPersona] = useState<Persona | null>(null);
+	const [error, setError] = useState<string | null>(null);
 
 	// t_persona 테이블에서 데이터 조회
 	const fetchPersonas = async () => {
 		setIsLoading(true);
+		setError(null); // 에러 초기화
 		try {
 			const token = localStorage.getItem("access_token");
 			if (!token) {
-				console.error("No access token found");
-				return;
+				throw new Error("로그인이 필요합니다.");
 			}
 
-			// 외부 DB의 t_persona 테이블 데이터 조회 API 호출
-			const response = await fetch("/api/v1/persona/", {
+			// Next.js rewrites를 통해 프록시 사용 (끝의 "/" 제거)
+			const response = await fetch("/api/v1/persona", {
+				method: "GET",
 				headers: {
+					"Content-Type": "application/json",
 					Authorization: `Bearer ${token}`,
 				},
 			});
@@ -107,12 +110,16 @@ export default function PersonaPage() {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 
-			const data: Persona[] = await response.json();
+			const data = await response.json();
 			setPersonas(data);
 		} catch (error) {
 			console.error("Error fetching personas:", error);
-			// 에러 발생 시 빈 배열로 설정
-			setPersonas([]);
+			setError(
+				error instanceof Error
+					? error.message
+					: "알 수 없는 오류가 발생했습니다."
+			);
+			setPersonas([]); // 에러 시 빈 배열로 설정
 		} finally {
 			setIsLoading(false);
 		}
@@ -251,6 +258,27 @@ export default function PersonaPage() {
 						/>
 					</AdminTableBody>
 				</AdminTable>
+			</AdminPageLayout>
+		);
+	}
+	if (error) {
+		return (
+			<AdminPageLayout>
+				<AdminPageHeader
+					title="페르소나 관리"
+					searchPlaceholder="이름, ID, 타입, 상태 등 검색..."
+					searchValue={searchTerm}
+					onSearchChange={setSearchTerm}
+					onCreateClick={handleCreatePersona}
+					createButtonText="페르소나 생성"
+				/>
+				<div className="flex flex-col items-center justify-center p-8 text-center">
+					<div className="text-red-500 text-lg font-medium mb-2">오류 발생</div>
+					<div className="text-gray-600 mb-4">{error}</div>
+					<Button onClick={fetchPersonas} variant="outline">
+						다시 시도
+					</Button>
+				</div>
 			</AdminPageLayout>
 		);
 	}
