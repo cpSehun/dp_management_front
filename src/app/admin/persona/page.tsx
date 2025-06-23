@@ -615,6 +615,8 @@ export default function PersonaPage() {
 				<AdminPagination
 					currentPage={currentPage}
 					totalPages={totalPages}
+					totalItems={filteredPersonas.length}
+					itemsPerPage={ITEMS_PER_PAGE}
 					onPageChange={handlePageChange}
 				/>
 			)}
