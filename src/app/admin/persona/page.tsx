@@ -580,11 +580,25 @@ export default function PersonaPage() {
 									{formatDate(selectedPersona.updated_at)}
 								</span>
 							</div>
-							{selectedPersona.tags && (
+							{selectedPersona.tags && selectedPersona.tags.length > 0 && (
 								<div className="grid grid-cols-3 items-start gap-4">
 									<Label className="font-medium">태그:</Label>
-									<div className="col-span-2 text-sm text-slate-700">
-										{JSON.stringify(selectedPersona.tags, null, 2)}
+									<div className="col-span-2 flex flex-wrap gap-1">
+										{Array.isArray(selectedPersona.tags) ? (
+											selectedPersona.tags.map((tag, index) => (
+												<Badge
+													key={index}
+													variant="secondary"
+													className="text-xs px-2 py-1"
+												>
+													{typeof tag === "string" ? tag : JSON.stringify(tag)}
+												</Badge>
+											))
+										) : (
+											<Badge variant="secondary" className="text-xs px-2 py-1">
+												{JSON.stringify(selectedPersona.tags)}
+											</Badge>
+										)}
 									</div>
 								</div>
 							)}
