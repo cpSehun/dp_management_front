@@ -269,7 +269,7 @@ INSERT INTO daepa_agent.t_persona (
 					status: "INACTIVE",
 					model_id: "google/gemini-2.0-flash-001", // 고정값
 					tags: data.step3.tags,
-					properties: null, // JSON 타입에서 가장 "비어있음"에 가까운 NULL
+					properties: undefined, // JSON 타입에서 가장 "비어있음"에 가까운 NULL
 					summary: data.step3.summary,
 					llm_prompt: extractLLMPrompt(data.step2.personaInfo),
 					chat_opening: extractChatOpening(data.step2.personaInfo),
